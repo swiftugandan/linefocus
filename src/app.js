@@ -2,7 +2,7 @@
  * dock and the shell together. window.linefocus exposes it for scripting and browser tests. */
 
 import { DesignStore } from './core/history.js';
-import { defaultDesign, parseDesign, serializeDesign, switchVariant, APP_VERSION, COLLECTOR_TITLES } from './core/model.js';
+import { defaultDesign, parseDesign, serializeDesign, switchVariant, setPath, APP_VERSION, COLLECTOR_TITLES } from './core/model.js';
 import { buildDesignScene } from './core/design-scene.js';
 import { handlesFor, sunArc } from './core/handles.js';
 import { toRayOptics } from './core/rayoptics.js';
@@ -12,6 +12,8 @@ import { Inspector } from './ui/inspector.js';
 import { installCanvasInteractions } from './ui/canvas-interactions.js';
 import { designPointView, ledgerShares, concentrationProfile } from './ui/design-point-view.js';
 import { acceptanceView, incidenceView, dayView, yearView } from './ui/study-views.js';
+import { optimiseView, defaultSetup, chosenVariables, formatScore } from './ui/optimise-view.js';
+import { OBJECTIVES } from './core/optimise.js';
 import { parseEpw } from './core/solar.js';
 import { interpolateEta } from './core/studies.js';
 import { Persistence } from './ui/persistence.js';
@@ -22,6 +24,7 @@ import { hydrateIcons } from './ui/icons.js';
 /** @import { Design, CollectorType } from './core/model.js' */
 /** @import { DesignPointResult, AcceptanceJobResult, AnnualResult } from './worker/protocol.js' */
 /** @import { StudyState } from './ui/study-views.js' */
+/** @import { OptimiseSetup, OptimiseState } from './ui/optimise-view.js' */
 /** @import { OpticalScene } from './core/types.js' */
 /** @import { Figure } from './core/design-scene.js' */
 /** @import { ChangeDetail } from './core/history.js' */
@@ -70,6 +73,10 @@ export class LinefocusApp {
     /** @type {{ result: AnnualResult | null, revision: number, state: StudyState }} */
     this.annual = { result: null, revision: -1, state: { running: false, progress: null, error: null, stale: false } };
     this.scheduleStudies = debounce(() => this.runStudies(), 350);
+    /** @type {Partial<Record<CollectorType, OptimiseSetup>>} Optimiser setups for the session, per collector type. */
+    this.optimiseSetups = {};
+    /** @type {OptimiseState} */
+    this.optimisation = { running: false, done: 0, total: 0, history: [], result: null, error: null, revision: -1 };
     this.fitScale = 0;
     /** @type {string} */
     this.fittedType = '';
@@ -226,7 +233,56 @@ export class LinefocusApp {
   /** Refreshes the study list and, when a study is showing, the dock. */
   renderStudyChrome() {
     this.renderStudies();
-    if (this.study !== 'design-point') this.renderDock();
+    // The optimiser's view holds editable inputs; background studies never redraw it.
+    if (this.study !== 'design-point' && this.study !== 'optimise') this.renderDock();
+  }
+
+  /** The optimiser setup for the current collector type. */
+  get optimiseSetup() {
+    const type = this.store.design.collector.type;
+    return (this.optimiseSetups[type] ??= defaultSetup(this.store.design));
+  }
+
+  async runOptimise() {
+    const design = structuredClone(this.store.design);
+    const setup = this.optimiseSetup;
+    const variables = chosenVariables(design, setup);
+    const maxEvaluations = 30 + 25 * variables.length;
+    this.optimisation = { running: true, done: 0, total: maxEvaluations, history: [], result: null, error: null, revision: this.store.revision };
+    this.renderDock();
+    const redraw = debounce(() => { if (this.study === 'optimise') this.renderDock(); }, 120);
+    try {
+      const result = await this.engine.optimise(design, { objective: setup.objective, variables, maxEvaluations }, (done, total, value) => {
+        this.optimisation.done = done; this.optimisation.total = total;
+        if (value !== undefined) this.optimisation.history.push(value);
+        redraw();
+      });
+      redraw.cancel();
+      this.optimisation = { ...this.optimisation, running: false, result: result?.optimisation ?? null };
+      if (result) this.setStatus(`Optimiser finished after ${result.optimisation.evaluations} candidates`);
+    } catch (error) {
+      this.optimisation = { ...this.optimisation, running: false, error: error instanceof Error ? error.message : String(error) };
+    }
+    this.renderDock();
+    this.renderStudies();
+  }
+
+  stopOptimise() {
+    this.engine.cancel('optimise');
+    this.optimisation = { ...this.optimisation, running: false };
+    this.setStatus('Optimiser stopped');
+    this.renderDock();
+  }
+
+  applyOptimised() {
+    const r = this.optimisation.result;
+    if (!r) return;
+    try {
+      this.store.transact('Apply optimised values', d => r.variables.forEach((v, i) => setPath(d, v.path, r.best.values[i])));
+      this.optimisation = { ...this.optimisation, revision: this.store.revision };
+    } catch (error) {
+      this.toasts.show(error instanceof Error ? error.message : String(error), { kind: 'error' });
+    }
   }
 
   // ---------- Rendering ----------
@@ -264,6 +320,11 @@ export class LinefocusApp {
     else if (this.study === 'incidence') view = incidenceView({ design, scene: this.scene, result: this.annual.result, state: this.annual.state, width: studyWidth });
     else if (this.study === 'day') view = dayView({ result: this.annual.result, state: this.annual.state, width: studyWidth });
     else if (this.study === 'year') view = yearView({ design, result: this.annual.result, state: this.annual.state, width: studyWidth });
+    else if (this.study === 'optimise') view = optimiseView({
+      design, setup: this.optimiseSetup, state: this.optimisation, width: window.innerWidth > 720 ? dock.clientWidth - 36 - 338 : dock.clientWidth - 36, revision: this.store.revision,
+      onSetup: setup => { this.optimiseSetups[design.collector.type] = setup; this.renderDock(); },
+      onRun: () => this.runOptimise(), onStop: () => this.stopOptimise(), onApply: () => this.applyOptimised(),
+    });
     else view = designPointView({ design, result: this.result, error: this.error, running: this.running, width });
     dock.replaceChildren(view);
     dock.scrollTop = scroll;
@@ -292,6 +353,9 @@ export class LinefocusApp {
       ['incidence', 'Incidence angle', this.annual.state, annual ? [fmt(eta0 > 0 ? (annual.grid.tracking ? interpolateEta(annual.grid, annual.grid.transversal[0], 45) : interpolateEta(annual.grid, 45, 0)) / eta0 : 0, 3), h('small', { text: 'modifier at 45°' })] : ['–'], 'Efficiency against sun angle'],
       ['day', 'Day', this.annual.state, annual ? [fmt(annual.days[1].energy / 1000, 1), h('small', { text: 'kWh/m on 21 June' })] : ['–'], annual ? `21 December: ${fmt(annual.days[3].energy / 1000, 1)} kWh/m` : 'Equinoxes and solstices'],
       ['year', 'Year', this.annual.state, annual ? [fmt(annual.year.perArea, 0), h('small', { text: 'kWh/m² a year' })] : ['–'], annual ? (this.store.design.weather.source === 'clear-sky' ? 'Clear sky, an upper bound' : annual.year.source) : 'Energy over a year'],
+      ['optimise', 'Optimise', /** @type {StudyState} */ ({ running: this.optimisation.running, progress: this.optimisation.total ? this.optimisation.done / this.optimisation.total : null, error: this.optimisation.error, stale: false }),
+        this.optimisation.result ? [formatScore(this.optimisation.result.objective, this.optimisation.result.confirmation.best).split(' ')[0], h('small', { text: `${OBJECTIVES[this.optimisation.result.objective].unit} best found`.trim() })] : ['–'],
+        this.optimisation.result ? `From ${formatScore(this.optimisation.result.objective, this.optimisation.result.confirmation.start)}` : 'Search for better values'],
     ];
     byId('studyList').replaceChildren(...items.map(([id, name, st, value, sub]) => {
       const [code, label] = stateOf(st);
@@ -488,13 +552,18 @@ export class LinefocusApp {
       { id: 'undo', label: 'Undo', icon: 'undo', shortcut: 'Ctrl+Z', enabled: () => this.store.canUndo, run: () => this.store.undo() },
       { id: 'redo', label: 'Redo', icon: 'redo', shortcut: 'Ctrl+Shift+Z', enabled: () => this.store.canRedo, run: () => this.store.redo() },
       collector('trough'), collector('fresnel'), collector('cpc'),
-      ...(/** @type {[StudyId, string, string][]} */ ([['design-point', 'Design point', 'target'], ['acceptance', 'Acceptance', 'acceptance'], ['incidence', 'Incidence angle', 'incidence'], ['day', 'Day', 'day'], ['year', 'Year', 'year']]))
+      ...(/** @type {[StudyId, string, string][]} */ ([['design-point', 'Design point', 'target'], ['acceptance', 'Acceptance', 'acceptance'], ['incidence', 'Incidence angle', 'incidence'], ['day', 'Day', 'day'], ['year', 'Year', 'year'], ['optimise', 'Optimise', 'optimise']]))
         .map(([id, label, icon]) => ({ id: `study-${id}`, label: `Show ${label.toLowerCase()} study`, icon, pressed: () => this.study === id, run: () => this.showStudy(id) })),
       { id: 'rerun-studies', label: 'Run studies again', icon: 'refresh', hint: 'Run the acceptance and annual studies again', enabled: () => !!this.scene, run: () => this.runStudies() },
       { id: 'import-epw', label: 'Import weather file', icon: 'weather', hint: 'Use hourly DNI and the site from an EnergyPlus weather (EPW) file', run: () => byId('epwInput').click() },
       { id: 'clear-sky', label: 'Clear sky', icon: 'sun', hint: 'Use the ASHRAE clear-sky model for DNI', pressed: () => d().weather.source === 'clear-sky', run: () => edit('Use the clear-sky model', x => { x.weather = { source: 'clear-sky' }; }) },
       ...SITES.map(site => ({ id: `site-${site.key}`, label: site.name, icon: 'globe', hint: `${site.name}: ${site.latitude}°, ${site.longitude}°`, pressed: () => d().site.name === site.name && d().weather.source === 'clear-sky',
-        run: () => edit(`Move to ${site.name}`, x => { x.site = { name: site.name, latitude: site.latitude, longitude: site.longitude, timezone: site.timezone, elevation: site.elevation }; x.weather = { source: 'clear-sky' }; }) })),
+        run: () => edit(`Move to ${site.name}`, x => {
+          x.site = { name: site.name, latitude: site.latitude, longitude: site.longitude, timezone: site.timezone, elevation: site.elevation };
+          x.weather = { source: 'clear-sky' };
+          // A fixed CPC keeps facing the equator at its new latitude.
+          if (x.collector.type === 'cpc') x.mounting.tiltDeg = Math.round(site.latitude);
+        }) })),
       { id: 'axis-ns', label: 'North–south axis', icon: 'trough', pressed: () => d().mounting.axisAzimuthDeg === 0, run: () => edit('Turn the axis north–south', x => { x.mounting.axisAzimuthDeg = 0; }) },
       { id: 'axis-ew', label: 'East–west axis', icon: 'trough', pressed: () => d().mounting.axisAzimuthDeg === 90, run: () => edit('Turn the axis east–west', x => { x.mounting.axisAzimuthDeg = 90; }) },
       { id: 'trace', label: 'Trace now', icon: 'trace', shortcut: 'T', hint: 'Trace the design point again', run: () => this.trace('full') },
@@ -555,7 +624,7 @@ export class LinefocusApp {
         { caption: 'Edit', items: [{ cmd: 'undo', size: 'small' }, { cmd: 'redo', size: 'small' }, { cmd: 'rename', size: 'small', label: 'Rename' }] },
       ] },
       { id: 'analyse', label: 'Analyse', groups: [
-        { caption: 'Studies', items: [{ cmd: 'study-design-point', label: 'Design point' }, { cmd: 'study-acceptance', label: 'Acceptance' }, { cmd: 'study-incidence', label: 'Incidence' }, { cmd: 'study-day', label: 'Day' }, { cmd: 'study-year', label: 'Year' }] },
+        { caption: 'Studies', items: [{ cmd: 'study-design-point', label: 'Design point' }, { cmd: 'study-acceptance', label: 'Acceptance' }, { cmd: 'study-incidence', label: 'Incidence' }, { cmd: 'study-day', label: 'Day' }, { cmd: 'study-year', label: 'Year' }, { cmd: 'study-optimise', label: 'Optimise', className: 'sun' }] },
         { caption: 'Run', items: [{ cmd: 'trace', label: 'Trace now', className: 'sun' }, { cmd: 'rerun-studies', size: 'small', label: 'Studies again' }, { cmd: 'new-seed', size: 'small', label: 'New seed' }] },
         { caption: 'Quality', items: [{ cmd: 'rays-20000', label: 'Draft' }, { cmd: 'rays-200000', label: 'Standard' }, { cmd: 'rays-1000000', label: 'Fine' }] },
       ] },
@@ -632,7 +701,7 @@ export class LinefocusApp {
   }
 }
 
-/** @typedef {'design-point' | 'acceptance' | 'incidence' | 'day' | 'year'} StudyId */
+/** @typedef {'design-point' | 'acceptance' | 'incidence' | 'day' | 'year' | 'optimise'} StudyId */
 
 /** Example sites with strong direct sunlight, for quick comparisons. */
 const SITES = [

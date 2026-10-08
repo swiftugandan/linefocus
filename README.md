@@ -27,6 +27,8 @@ The app runs straight from `src/` with no build step. `npm run build` writes the
 
 **Run the studies.** The Studies panel on the left lists the design point and four studies that run on their own whenever the design settles. **Acceptance** shows how much misalignment the collector tolerates. **Incidence angle** shows how efficiency falls as the sun moves off the aperture. **Day** covers the equinoxes and solstices, and **Year** sums every hour of the year. Day and year use the ASHRAE clear-sky model, an upper bound, until you import an EPW weather file from the Site tab. EPW files for most of the world are free from [climate.onebuilding.org](https://climate.onebuilding.org).
 
+**Optimise.** The Optimise study searches for better values within ranges you set: for example aperture and focal length for the best yearly energy per square metre, or receiver height for the best design-point efficiency. It shows the search converging and confirms the result with fresh random rays. It offers to apply the values only when the gain is larger than the sampling noise.
+
 **Find any command** with Ctrl+K.
 
 | Action | Keys |
@@ -61,6 +63,7 @@ The design saves itself in your browser as you work. The title bar says "Saved o
 | The canvas | `src/render/view.js`, `src/ui/canvas-interactions.js` |
 | The design panel | `src/ui/inspector.js` |
 | Studies: acceptance, incidence, day, year | `src/core/studies.js`, `src/core/solar.js`, `src/ui/study-views.js` |
+| The optimiser | `src/core/optimise.js`, `src/ui/optimise-view.js` |
 | Results and charts | `src/ui/design-point-view.js`, `src/ui/charts.js` |
 | Ribbon, commands, dialogs | `src/app.js`, `src/ui/shell.js` |
 | Colours and type | `style.css` (see [docs/BRAND.md](docs/BRAND.md)) |

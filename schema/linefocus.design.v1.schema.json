@@ -600,7 +600,7 @@
         },
         "tiltDeg": {
           "type": "number",
-          "description": "Tilt (°). Fixed CPC tilt about its axis, towards +x",
+          "description": "Tilt (°). Fixed CPC tilt about its axis. About the latitude faces the equator; Linefocus sets it when you choose a CPC or an example site",
           "minimum": -90,
           "maximum": 90
         },

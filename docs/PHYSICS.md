@@ -168,7 +168,7 @@ The **flat-absorber CPC** has an absorber from (−a′, 0) to (a′, 0) and acc
 
 It runs from the right absorber edge up to the point where its tangent is vertical. The full height is H = (a + a′)/tan θa, with aperture half-width a = a′/sin θa.
 
-The **tube CPC** is designed for a radius r_d: the absorber or envelope radius plus a clearance gap. The reflector point at parameter θ (measured from the cusp under the tube) is
+The **tube CPC** is designed for a radius r_d: the absorber or envelope radius plus the clearance gap. A flat CPC's reflectors likewise start the clearance gap beyond each edge of the absorber, so a = a′ + gap in the formulas above. The reflector point at parameter θ (measured from the cusp under the tube) is
 
 ```
 P(θ) = r_d·(sin θ, −cos θ) − ρ(θ)·(cos θ, sin θ)
@@ -195,6 +195,23 @@ Day and year use the IAM grid (bilinear interpolation) rather than tracing every
 ```
 q(t) = DNI(t) · W_ref · cos θi(t) · η(θT(t), θL(t)) · η_end(θL(t))
 ```
+
+### Optimisation
+
+The optimiser searches a few design values, each inside a range the user sets, with Nelder–Mead in a normalised box. It maximises one of four objectives:
+
+| Objective | Score |
+|---|---|
+| Optical efficiency | η at the design point, in percent |
+| Energy per m² of aperture | A year's absorbed energy per m² of reference aperture. With the receiver fixed, this favours a smaller aperture |
+| Energy per metre of field | A year's absorbed energy per metre of field width: rows × pitch for an LFR, the aperture otherwise |
+| Concentration × acceptance | C · sin θ₉₀ from an acceptance sweep |
+
+Every candidate is validated, including the rules across fields. A candidate that breaks a rule scores minus infinity rather than stopping the search. All candidates use the same seed (common random numbers), so differences between them are real. The objective still has small steps where rays cross surface edges, so the search can stop on a plateau.
+
+Annual objectives don't trace the whole year for every candidate. Before the search, the year's hours are grouped into 2° cells of (θT, θL), weighted by DNI (times cos θi when the reference has a cosine), and clustered into at most 36 sun positions with deterministic, energy-weighted k-means. These keep all of the year's energy, and the end-loss factor is applied per position. For the default designs at Almería on a clear-sky year, this agrees with the Year study to about 0.1% for the trough and 1% for the LFR. For the CPC the gap is about 4%, because its sharp acceptance edge makes efficiency change abruptly with angle. The binning depends on site, mounting and weather only, so one set serves every candidate.
+
+When the search ends, Linefocus traces the starting design and the best design with twice the rays and a different seed, and traces the best design again with a third seed. The difference between the two best-design traces estimates the sampling noise. The app calls a gain real only when it exceeds twice that noise, and only then offers to apply it as one undo step. A value that stops at the edge of its range is flagged, since the best design may lie beyond it.
 
 ### End losses
 
@@ -223,9 +240,9 @@ Clear-sky totals are an upper bound with no cloud. Treat them as indicative. Imp
 
 Linefocus checks itself against three kinds of evidence. All of them run in `npm test`.
 
-1. **Analytic results.** These include ledger conservation at several sun angles, Fresnel reflectance at normal incidence ((n−1)/(n+1))², total internal reflection, the Bravais index, the 2σ slope-error rule, sunshape bounds, the trough's minimum receiver size, LFR rows reflecting the sun centre onto the receiver centre at sun angles from −60° to 70°, and a symmetric LFR giving the same efficiency either side of the axis. The solar model is checked against Meeus's worked examples (Julian day, declination), the solstice declinations, the extremes of the equation of time, an overhead sun at noon on the Tropic of Cancer, and the ASHRAE formula. The year must add up month by month, and a clear day must be symmetric about solar noon.
+1. **Analytic results.** These include ledger conservation at several sun angles, Fresnel reflectance at normal incidence ((n−1)/(n+1))², total internal reflection, the Bravais index, the 2σ slope-error rule, sunshape bounds, the trough's minimum receiver size, LFR rows reflecting the sun centre onto the receiver centre at sun angles from −60° to 70°, and a symmetric LFR giving the same efficiency either side of the axis. For CPCs: the flat CPC's end points and vertical top tangent, the tube CPC's cusp, the continuity of its two sections and its πr/sin θa top, an ideal CPC accepting everything inside ±θa and nothing beyond, and a truncated CPC collecting some light beyond θa. The solar model is checked against Meeus's worked examples (Julian day, declination), the solstice declinations, the extremes of the equation of time, an overhead sun at noon on the Tropic of Cancer, and the ASHRAE formula. The year must add up month by month, and a clear day must be symmetric about solar noon.
 2. **A semi-analytic intercept factor.** With a Gaussian sun and Gaussian slope error, a ray leaving a trough mirror at x has a Gaussian transversal error with σ = √(σ_sun² + 4σ_slope²). It reaches a tube of radius r at distance d(x) = f + x²/4f when the error is smaller than asin(r/d). Averaging that probability over the aperture gives γ to within 0.003 of the trace.
-3. **An independent tracer.** Six scenes are traced by Linefocus and by [Ray Optics Simulation](https://phydemo.app/ray-optics/) at pinned commit `daf7677`: troughs on and off axis, and LFR fields at three sun angles, one with heavy blocking. The scenes use ideal mirrors, collimated light and flat absorbers. The exported scenes and Ray Optics' detector results are committed under `tests/oracle/`, and the tests require agreement within 0.002 of the beam power. At the time of writing every case agrees within 0.0001. `scripts/ray-optics-oracle.mjs` regenerates the goldens.
+3. **An independent tracer.** 8 scenes are traced by Linefocus and by [Ray Optics Simulation](https://phydemo.app/ray-optics/) at pinned commit `daf7677`: troughs on and off axis; LFR fields at three sun angles, one with heavy blocking; the app's own LFR builder with cylindrical rows; and a truncated CPC beyond its acceptance angle. The scenes use ideal mirrors, collimated light and flat absorbers. The exported scenes and Ray Optics' detector results are committed under `tests/oracle/`, and the tests require agreement within 0.002 of the beam power. At the time of writing every case agrees within 0.0001. `scripts/ray-optics-oracle.mjs` regenerates the goldens.
 
 Published intercept factors for commercial troughs (about 0.92–0.95) are lower than a trace of the mirror alone. They also include receiver misalignment, structural deflection, tracking and soiling. Model those as extra slope or tracking error if you want to compare.
 

@@ -103,7 +103,8 @@ export function barList({ rows, max, width, format }) {
 
 /**
  * @typedef {{ name: string, colour: string, points: [number, number][], dashed?: boolean }} Series
- * @typedef {{ label: string, format: (v: number) => string, domain?: [number, number], ticks?: number[] }} Axis
+ * @typedef {{ label: string, format: (v: number) => string, domain?: [number, number], ticks?: number[], zero?: boolean }} Axis
+ *   zero: false lets a y axis start near the data instead of at zero, for change-over-time views.
  */
 
 /**
@@ -115,11 +116,12 @@ export function lineChart({ series, x, y, width, height, markers = [] }) {
   const all = series.flatMap(sr => sr.points);
   const xs = all.map(p => p[0]), ys = all.map(p => p[1]);
   const xd = x.domain ?? [Math.min(...xs), Math.max(...xs)];
-  const yTicks = y.ticks ?? niceTicks(y.domain?.[0] ?? Math.min(0, ...ys), y.domain?.[1] ?? Math.max(...ys), 4);
+  const yTicks = y.ticks ?? niceTicks(y.domain?.[0] ?? (y.zero === false ? Math.min(...ys) : Math.min(0, ...ys)), y.domain?.[1] ?? Math.max(...ys), 4);
   const yd = /** @type {[number, number]} */ ([yTicks[0], yTicks.at(-1) ?? 1]);
   const xTicks = x.ticks ?? niceTicks(xd[0], xd[1], Math.max(3, Math.floor(width / 90)));
   const multi = series.length > 1;
-  const pad = { left: 46, right: 14, top: 10, bottom: 34 };
+  // The left margin fits the widest tick label plus the rotated axis title.
+  const pad = { left: Math.max(46, 30 + 6.4 * Math.max(...yTicks.map(t => y.format(t).length))), right: 14, top: 10, bottom: 34 };
   if (multi) {
     // Leave room for end labels only if they will be drawn.
     const yEnds = series.map(sr => sr.points.at(-1)?.[1]).filter(v => v !== undefined);

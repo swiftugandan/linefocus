@@ -35,7 +35,7 @@ const VISIBLE = {
   'receiver.envelope.extinction': d => d.receiver.type === 'tube' && d.receiver.envelope.mode === 'physical',
   'receiver.envelope.transmittance': d => d.receiver.type === 'tube' && d.receiver.envelope.mode === 'fixed',
   'receiver.cover.gap': d => d.receiver.type === 'flat' && d.receiver.cover.mode !== 'none',
-  'receiver.cover.overhang': d => d.receiver.type === 'flat' && d.receiver.cover.mode !== 'none',
+  'receiver.cover.overhang': d => d.receiver.type === 'flat' && d.receiver.cover.mode !== 'none' && d.collector.type !== 'cpc',
   'receiver.cover.thickness': d => d.receiver.type === 'flat' && d.receiver.cover.mode === 'physical',
   'receiver.cover.refractiveIndex': d => d.receiver.type === 'flat' && d.receiver.cover.mode === 'physical',
   'receiver.cover.extinction': d => d.receiver.type === 'flat' && d.receiver.cover.mode === 'physical',

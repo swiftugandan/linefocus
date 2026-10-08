@@ -1,10 +1,11 @@
 /** Page-side handle on the engine worker. Each request returns a promise; a request superseded by a newer one on
  * the same channel resolves to null. */
 
-/** @import { EngineRequest, EngineResponse, EngineResult, DesignPointResult, AcceptanceJobResult, AnnualResult } from './protocol.js' */
+/** @import { EngineRequest, EngineResponse, EngineResult, DesignPointResult, AcceptanceJobResult, AnnualResult, OptimiseJobResult } from './protocol.js' */
+/** @import { Objective, Variable } from '../core/optimise.js' */
 /** @import { Design } from '../core/model.js' */
 
-/** @typedef {(done: number, total: number) => void} OnProgress */
+/** @typedef {(done: number, total: number, value?: number) => void} OnProgress */
 /** A request without its id, kept as a union of the request kinds. */
 /** @typedef {EngineRequest extends infer R ? (R extends unknown ? Omit<R, 'id'> : never) : never} RequestBody */
 /** @typedef {{ channel: string, resolve: (value: EngineResult | null) => void, reject: (error: Error) => void, onProgress?: OnProgress }} Pending */
@@ -28,7 +29,7 @@ export class EngineClient {
   receive(message) {
     const pending = this.pending.get(message.id);
     if (!pending) return;
-    if (message.type === 'progress') { pending.onProgress?.(message.done, message.total); return; }
+    if (message.type === 'progress') { pending.onProgress?.(message.done, message.total, message.value); return; }
     this.pending.delete(message.id);
     if (message.type === 'result') pending.resolve(message.result);
     else if (message.type === 'superseded') pending.resolve(null);
@@ -58,6 +59,19 @@ export class EngineClient {
   /** @param {Design} design @param {OnProgress} [onProgress] */
   async acceptance(design, onProgress) {
     return /** @type {AcceptanceJobResult | null} */ (await this.send({ kind: 'acceptance', channel: 'acceptance', design }, onProgress));
+  }
+
+  /**
+   * @param {Design} design @param {{ objective: Objective, variables: Variable[], maxEvaluations: number }} setup @param {OnProgress} [onProgress]
+   */
+  async optimise(design, setup, onProgress) {
+    return /** @type {OptimiseJobResult | null} */ (await this.send({ kind: 'optimise', channel: 'optimise', design, ...setup }, onProgress));
+  }
+
+  /** Stops whatever is running on a channel; its promise resolves to null. @param {string} channel */
+  cancel(channel) {
+    for (const [id, p] of this.pending) if (p.channel === channel) { this.pending.delete(id); p.resolve(null); }
+    this.worker.postMessage(/** @type {EngineRequest} */ ({ kind: 'cancel', id: this.nextId++, channel }));
   }
 
   /** @param {Design} design @param {OnProgress} [onProgress] */

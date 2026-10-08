@@ -163,7 +163,7 @@ export const DESIGN_SPEC = object('Linefocus design', {
   }),
   mounting: object('Mounting', {
     axisAzimuthDeg: number('Axis azimuth', '°', -180, 180, { step: 1, help: '0° is a north–south axis, 90° is east–west' }),
-    tiltDeg: number('Tilt', '°', -90, 90, { step: 0.5, help: 'Fixed CPC tilt about its axis, towards +x' }),
+    tiltDeg: number('Tilt', '°', -90, 90, { step: 0.5, help: 'Fixed CPC tilt about its axis. About the latitude faces the equator; Linefocus sets it when you choose a CPC or an example site' }),
     trackingErrorMrad: number('Tracking error', 'mrad', -100, 100, { step: 0.1, help: 'Constant misalignment of a tracking trough, used in the day and year studies' }),
     rowLength: number('Row length', 'm', 0.5, 5000, { step: 1, help: 'Used for end losses' }),
   }),
