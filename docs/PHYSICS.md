@@ -204,14 +204,15 @@ The optimiser searches a few design values, each inside a range the user sets, w
 |---|---|
 | Optical efficiency | η at the design point, in percent |
 | Energy per m² of aperture | A year's absorbed energy per m² of reference aperture. With the receiver fixed, this favours a smaller aperture |
-| Energy per metre of field | A year's absorbed energy per metre of field width: rows × pitch for an LFR, the aperture otherwise |
-| Concentration × acceptance | C · sin θ₉₀ from an acceptance sweep |
+| Energy per metre of collector (trough, CPC) | A year's absorbed energy per metre of collector length. This favours a larger aperture, so set it against energy per m² |
+| Energy per m² of field (LFR) | A year's absorbed energy per square metre of land: rows × pitch across, per metre of length |
+| Concentration × acceptance | C · sin θ₉₀ from an acceptance sweep. Each candidate widens its own sweep, so this objective is a little noisier than the others |
 
 Every candidate is validated, including the rules across fields. A candidate that breaks a rule scores minus infinity rather than stopping the search. All candidates use the same seed (common random numbers), so differences between them are real. The objective still has small steps where rays cross surface edges, so the search can stop on a plateau.
 
 Annual objectives don't trace the whole year for every candidate. Before the search, the year's hours are grouped into 2° cells of (θT, θL), weighted by DNI (times cos θi when the reference has a cosine), and clustered into at most 36 sun positions with deterministic, energy-weighted k-means. These keep all of the year's energy, and the end-loss factor is applied per position. For the default designs at Almería on a clear-sky year, this agrees with the Year study to about 0.1% for the trough and 1% for the LFR. For the CPC the gap is about 4%, because its sharp acceptance edge makes efficiency change abruptly with angle. The binning depends on site, mounting and weather only, so one set serves every candidate.
 
-When the search ends, Linefocus traces the starting design and the best design with twice the rays and a different seed, and traces the best design again with a third seed. The difference between the two best-design traces estimates the sampling noise. The app calls a gain real only when it exceeds twice that noise, and only then offers to apply it as one undo step. A value that stops at the edge of its range is flagged, since the best design may lie beyond it.
+When the search ends, Linefocus traces the starting and best designs again with twice the rays at two fresh seeds. The RMS of the two designs' seed-to-seed differences estimates the sampling noise. Annual objectives are then confirmed with the full Year study (traced incidence grid, hourly year), so the confirmed figure is the one the Studies panel shows after the values are applied. Other objectives use the mean of the fresh-seed traces. The app calls a gain real only when it exceeds twice the noise, and only then offers to apply it as one undo step. With a fixed receiver, no single annual objective settles a trough's size: energy per m² favours a smaller aperture and energy per metre a larger one. The pair, together with the range-limit flags, is the honest tool. A value that stops at the edge of its range is flagged, since the best design may lie beyond it.
 
 ### End losses
 

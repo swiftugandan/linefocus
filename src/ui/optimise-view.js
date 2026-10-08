@@ -2,7 +2,7 @@
 
 import { h, fmt } from './dom.js';
 import { lineChart, chartFrame, dataTable } from './charts.js';
-import { OBJECTIVES, variablesFor } from '../core/optimise.js';
+import { OBJECTIVES, variablesFor, objectivesFor } from '../core/optimise.js';
 import { DESIGN_SPEC, getPath } from '../core/model.js';
 import { specAt } from '../core/spec.js';
 
@@ -39,7 +39,7 @@ export function formatScore(objective, v) {
 export function optimiseView({ design, setup, state, width, revision, onSetup, onRun, onStop, onApply }) {
   const vars = variablesFor(design);
   const objective = h('select', { class: 'select', 'aria-label': 'Objective', disabled: state.running });
-  for (const [key, o] of Object.entries(OBJECTIVES)) objective.append(h('option', { value: key, text: o.label, selected: key === setup.objective }));
+  for (const key of objectivesFor(design.collector.type)) objective.append(h('option', { value: key, text: OBJECTIVES[key].label, selected: key === setup.objective }));
   objective.addEventListener('change', () => onSetup({ ...setup, objective: /** @type {Objective} */ (objective.value) }));
 
   const rows = vars.map(v => {
@@ -73,7 +73,7 @@ export function optimiseView({ design, setup, state, width, revision, onSetup, o
     h('p', { class: 'opt-help', text: OBJECTIVES[setup.objective].help }),
     h('div', { class: 'subhead', text: 'Values to vary, and their range' }),
     ...rows,
-    h('div', { class: 'opt-actions' }, [action, state.running ? h('span', { class: 'opt-progress', text: `Candidate ${state.done} of up to ${state.total}` }) : null]),
+    h('div', { class: 'opt-actions' }, [action, state.running ? h('span', { class: 'opt-progress', text: state.done >= state.total ? 'Confirming the result with fresh rays…' : `Candidate ${state.done} of up to ${state.total}` }) : null]),
   ]);
 
   /** @type {(Node | null)[]} */
@@ -103,7 +103,7 @@ function summary(design, r, changed, onApply) {
   const noise = Math.max(r.confirmation.noise, 1e-12);
   const real = gain > 2 * noise;
   const verdict = real
-    ? `Confirmed with fresh rays: ${formatScore(r.objective, r.confirmation.start)} → ${formatScore(r.objective, r.confirmation.best)}, a gain of ${formatGain(r.objective, gain)} against sampling noise of about ±${formatGain(r.objective, noise)}.`
+    ? `Confirmed${r.bins ? ' with the full year study' : ' with fresh rays'}: ${formatScore(r.objective, r.confirmation.start)} → ${formatScore(r.objective, r.confirmation.best)}, a gain of ${formatGain(r.objective, gain)} against sampling noise of about ±${formatGain(r.objective, noise)}.`
     : `No gain beyond sampling noise (±${formatGain(r.objective, noise)}): the design is already at or near the best in these ranges.`;
   const apply = h('button', { class: 'primary-button', type: 'button', disabled: !real, text: 'Apply these values' });
   apply.addEventListener('click', onApply);

@@ -42,7 +42,35 @@ Escape, a lost pointer or a window blur cancels a drag.
 
 ## Tracing off the main thread
 
-`EngineClient` sends jobs to `engine.worker.js` on named channels. The worker traces in chunks of 32,768 rays and yields between chunks. If a newer job has arrived on the same channel, it abandons the old one, so a fast drag never queues stale work. Each block of 4,096 rays has its own seed, so a trace split into chunks equals one uninterrupted trace exactly (a test checks this). Results carry the cross-section they were traced from, so the view never mixes geometry and rays from different designs.
+`EngineClient` sends jobs to `engine.worker.js` on named channels:
+
+| Channel | Job | Result |
+|---|---|---|
+| `design-point` | Trace the design point, as a quick preview and then at full ray count | Scene, figures, trace |
+| `acceptance` | Sweep misalignment both ways | Transmission curve, half-angles, C·sin θ90 |
+| `annual` | Trace the incidence-angle grid, then integrate four days and a year | Grid, days, year |
+| `optimise` | Nelder–Mead search, then confirmation | Best values, history, confirmed gain and noise |
+
+A newer job on a channel supersedes the older one. The worker traces in chunks (32,768 rays for the design point, one study point or one candidate for the rest) and yields between them. If a newer job has arrived on the same channel, it abandons the old one, so a fast drag never queues stale work. A `cancel` message marks a channel with a fresh id and starts nothing, so the Stop button reuses the same mechanism. Each block of 4,096 rays has its own seed, so a trace split into chunks equals one uninterrupted trace exactly (a test checks this). Results carry the cross-section they were traced from, so the view never mixes geometry and rays from different designs.
+
+The app runs the acceptance and annual studies automatically, one after the other, once a full design-point trace has settled for the current revision. While they run, the Studies panel marks older results as updating rather than hiding them.
+
+## Geometry that depends on the sun
+
+LFR rows turn with the sun, so `buildDesignScene(design, aimDeg)` takes the sun's transversal angle. Other collectors ignore it. The canvas and the design point use the design point's angle. The incidence grid rebuilds the field for each θT, the acceptance sweep keeps the rows aimed at the design point while the sun moves, and the optimiser's annual objective rebuilds the field for each sun position. `tracksSun(design)` and `tracksTransversally(design)` are the two questions the rest of the code asks; no other code checks the collector type to decide how to aim.
+
+## Studies pipeline
+
+`studies.js` turns traces into engineering figures in three steps. The incidence grid traces η at fixed sun angles. Bilinear interpolation then gives η at any angle. Day and year integrate `DNI · W_ref · (cos θi when the reference has a cosine) · η · η_end` over sun positions from `solar.js`. End losses are an analytic factor outside the trace. DNI comes from the ASHRAE clear-sky model or from the 8,760 values of an imported EPW file stored in the design.
+
+## Optimiser
+
+`optimise.js` maps chosen design values to a unit box and runs Nelder–Mead. Every candidate goes through `validateDesign`; a `ValidationError` scores minus infinity. Candidates share one seed. Annual objectives trace at most 36 sun positions, clustered once per run from the year's hours. The result is confirmed at two fresh seed pairs for a noise estimate, and annual objectives are also confirmed with the full Year study, so the number shown is the number the Studies panel will show after Apply. Optimiser settings are session state per collector type and are never saved in the design.
+
+## Known costs
+
+- The undo snapshot, every preview and every worker message copy the whole design with `structuredClone`. A design with an EPW file carries 8,760 numbers, about 70 KB. That is fine today, but it is the first thing to slim (for example, by storing the weather by reference) if designs grow.
+- The annual study takes about 0.2 s for a trough and 4–7 s for an LFR or CPC, whose grids have two axes. An optimiser run with annual objectives takes 15–60 s, mostly in the candidates and the final Year-study confirmation.
 
 ## Rendering
 

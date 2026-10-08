@@ -6,13 +6,13 @@ import { specAt, ValidationError } from './spec.js';
 import { buildDesignScene, designPointOptions, tracksSun, tracksTransversally } from './design-scene.js';
 import { trace } from './tracer.js';
 import { sunPosition, collectorAngles } from './solar.js';
-import { dniAt, endLossFactor, acceptanceStudy } from './studies.js';
+import { dniAt, endLossFactor, acceptanceStudy, iamGrid, yearStudy } from './studies.js';
 
 /** @import { Design } from './model.js' */
 /** @import { NumberSpec } from './spec.js' */
 
 /**
- * @typedef {'efficiency' | 'annualPerArea' | 'annualPerField' | 'cap'} Objective
+ * @typedef {'efficiency' | 'annualPerArea' | 'annualPerLength' | 'annualPerLand' | 'cap'} Objective
  * @typedef {{ path: string, min: number, max: number }} Variable
  * @typedef {{ transversalDeg: number, longitudinalDeg: number, weight: number }} SunBin
  *   weight is the year's DNI (times cos θi when the reference has a cosine) in this bin, in Wh/m².
@@ -28,9 +28,15 @@ const MAX_BINS = 36;
 export const OBJECTIVES = {
   efficiency: { label: 'Optical efficiency', unit: '%', help: 'At the design point. Watch for the trivial answer of a larger absorber' },
   annualPerArea: { label: 'Energy per m² of aperture', unit: 'kWh/m²', help: 'A year at your site, per square metre of reference aperture. With the receiver fixed, this favours a smaller aperture; compare with energy per metre of field' },
-  annualPerField: { label: 'Energy per metre of field', unit: 'kWh/m', help: 'A year at your site, per metre of field width across the collector: rows × pitch for an LFR, the aperture otherwise' },
-  cap: { label: 'Concentration × acceptance', unit: '', help: 'C · sin θ90: how much concentration the design buys for its tolerance' },
+  annualPerLength: { label: 'Energy per metre of collector', unit: 'kWh/m', help: 'A year at your site, per metre of collector length. This favours a larger aperture; compare with energy per m² of aperture' },
+  annualPerLand: { label: 'Energy per m² of field', unit: 'kWh/m²', help: 'A year at your site, per square metre of land under the field: rows × pitch across, per metre of length' },
+  cap: { label: 'Concentration × acceptance', unit: '', help: 'C · sin θ90: how much concentration the design buys for its tolerance. Each candidate sweeps its own range, so expect a little more noise than the other objectives' },
 };
+
+/** Objectives that mean something distinct for a collector type. @param {Design['collector']['type']} type @returns {Objective[]} */
+export function objectivesFor(type) {
+  return type === 'fresnel' ? ['efficiency', 'annualPerArea', 'annualPerLand', 'cap'] : ['efficiency', 'annualPerArea', 'annualPerLength', 'cap'];
+}
 
 /** Values worth optimising, per collector type. Receivers are included; fix them by unticking. */
 /** @type {Record<Design['collector']['type'], string[]>} */
@@ -122,7 +128,7 @@ export async function nelderMead(f, x0, { maxEvaluations, step = 0.12, tolerance
  */
 export function sunBins(design) {
   const tracking = tracksTransversally(design);
-  const cosine = design.collector.type !== 'fresnel';
+  const cosine = buildDesignScene(design).scene.reference.cosine;
   /** @type {Map<string, { t: number, l: number, w: number }>} */
   const cells = new Map();
   for (let h = 0; h < 8760; h++) {
@@ -186,9 +192,28 @@ export async function score(design, objective, bins, { rays, seed }) {
     energy += bin.weight * eta * endLossFactor(scene, design, bin.longitudinalDeg);
   }
   // energy is Wh per m² of reference aperture over the year.
-  if (objective === 'annualPerArea') return energy / 1000;
-  const field = design.collector.type === 'fresnel' ? design.collector.rows * design.collector.pitch : scene.reference.width;
-  return (energy * scene.reference.width) / field / 1000;
+  return fromAreaEnergy(design, scene.reference.width, objective, energy / 1000);
+}
+
+/**
+ * Converts a year's kWh per m² of reference aperture to an annual objective.
+ * @param {Design} design @param {number} width reference aperture width @param {Objective} objective @param {number} perArea
+ */
+function fromAreaEnergy(design, width, objective, perArea) {
+  if (objective === 'annualPerLength') return perArea * width;
+  if (objective === 'annualPerLand' && design.collector.type === 'fresnel') return (perArea * width) / (design.collector.rows * design.collector.pitch);
+  return perArea;
+}
+
+/**
+ * The objective from the full Year study (traced incidence grid, hourly year), as the Studies panel reports it.
+ * @param {Design} design @param {Objective} objective
+ */
+async function yearScore(design, objective) {
+  const { scene } = buildDesignScene(design);
+  const grid = await iamGrid(design, scene);
+  if (!grid) return NaN;
+  return fromAreaEnergy(design, scene.reference.width, objective, yearStudy(design, scene, grid).perArea);
 }
 
 /**
@@ -201,7 +226,8 @@ export async function score(design, objective, bins, { rays, seed }) {
 export async function optimise(design, { objective, variables, maxEvaluations = 90, rays }, progress) {
   if (!variables.length) throw new Error('Choose at least one value to optimise.');
   for (const v of variables) if (!(v.max > v.min)) throw new Error(`The range for ${v.path} needs a maximum above its minimum.`);
-  const bins = objective === 'annualPerArea' || objective === 'annualPerField' ? sunBins(design) : [];
+  const annual = objective === 'annualPerArea' || objective === 'annualPerLength' || objective === 'annualPerLand';
+  const bins = annual ? sunBins(design) : [];
   const perEvaluation = rays ?? Math.max(8192, Math.min(40000, Math.round(design.simulation.rays / (bins.length > 8 ? 10 : 4))));
   const sampling = { rays: perEvaluation, seed: design.simulation.seed };
   /** @param {number[]} x */
@@ -229,17 +255,23 @@ export async function optimise(design, { objective, variables, maxEvaluations = 
     onEvaluate: async (best, count) => { history.push(-best); return progress ? progress(-best, count) : true; },
   });
   if (!Number.isFinite(result.value) && result.stopped) return null;
-  const bestDesign = toDesign(result.x);
-  // Confirm with more rays and two fresh seeds: the spread between them estimates the sampling noise.
-  const confirm = { rays: perEvaluation * 2, seed: (design.simulation.seed + 7919) >>> 0 };
-  const confirmTwin = { rays: perEvaluation * 2, seed: (design.simulation.seed + 104729) >>> 0 };
-  const startConfirmed = await score(design, objective, bins, confirm);
-  const bestConfirmed = await score(validateDesign(bestDesign), objective, bins, confirm);
-  const bestTwin = await score(validateDesign(bestDesign), objective, bins, confirmTwin);
+  // Tell the caller the search is over and confirmation has started.
+  if (progress && !(await progress(-result.value, maxEvaluations))) return null;
+  const bestDesign = validateDesign(toDesign(result.x));
+  // Sampling noise from two fresh seed pairs, one on each design: the RMS of their differences.
+  const seedA = { rays: perEvaluation * 2, seed: (design.simulation.seed + 7919) >>> 0 };
+  const seedB = { rays: perEvaluation * 2, seed: (design.simulation.seed + 104729) >>> 0 };
+  const startA = await score(design, objective, bins, seedA), startB = await score(design, objective, bins, seedB);
+  const bestA = await score(bestDesign, objective, bins, seedA), bestB = await score(bestDesign, objective, bins, seedB);
+  const noise = Math.sqrt(((startA - startB) ** 2 + (bestA - bestB) ** 2) / 2);
+  // Annual results are confirmed with the full Year study, so the figure matches what the Studies panel shows after
+  // applying. Other objectives use the fresh-seed traces.
+  const startConfirmed = annual ? await yearScore(design, objective) : (startA + startB) / 2;
+  const bestConfirmed = annual ? await yearScore(bestDesign, objective) : (bestA + bestB) / 2;
   return {
     objective, variables, history, evaluations: result.evaluations, bins: bins.length,
     start: { values: variables.map(v => /** @type {number} */ (getPath(design, v.path))), score: startScore },
     best: { values: variables.map(v => /** @type {number} */ (getPath(bestDesign, v.path))), score: -result.value },
-    confirmation: { start: startConfirmed, best: bestConfirmed, noise: Math.abs(bestConfirmed - bestTwin) },
+    confirmation: { start: startConfirmed, best: bestConfirmed, noise },
   };
 }
