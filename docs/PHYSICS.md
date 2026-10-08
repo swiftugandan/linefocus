@@ -107,7 +107,7 @@ The **reference aperture** of each collector type has width W_ref and normal ŷ:
 | LFR | Total mirror width: rows × mirror width |
 | CPC | Entry aperture width at the top of the (possibly truncated) reflector |
 
-The **reference power** is `P_ref = DNI · W_ref · cos θi`, and the **optical efficiency** is `η = P_absorbed / P_ref`. Cosine loss on the reference aperture is outside η. For an LFR, η still includes the cosine and gap effects of the tilted rows, because the mirror area does not equal the area the field projects towards the sun. This matches common LFR practice.
+The **reference power** for a trough or CPC is `P_ref = DNI · W_ref · cos θi`, so cosine loss on the aperture sits outside η. For an LFR it is `P_ref = DNI · W_ref`, with no cosine. That is the usual LFR convention: the field is horizontal and its rows tilt individually, so the cosine and gap effects of the field belong inside η, and its incidence-angle modifiers stay at or below 1. In both cases the **optical efficiency** is `η = P_absorbed / P_ref`, and day and year power is `DNI · W_ref · (cos θi for a trough or CPC) · η · η_end`.
 
 The **intercept factor** γ is the fraction of power leaving the primary reflector that reaches the absorber, directly or by way of a secondary reflector. Each ray is weighted by its power just after its first primary reflection. A ray that meets a glass envelope or cover counts as intercepted when its straight path continues to the absorber, so glass losses don't reduce γ. The receiver term ρ·τ·α is therefore not part of γ.
 

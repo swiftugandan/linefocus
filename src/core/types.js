@@ -38,10 +38,11 @@
  */
 
 /**
- * A traceable cross-section.
+ * A traceable cross-section. With `reference.cosine`, P_ref = DNI · width · cos θi; without it (an LFR field),
+ * P_ref = DNI · width.
  * @typedef {{
  *   surfaces: Surface[],
- *   reference: { width: number, label: string },
+ *   reference: { width: number, label: string, cosine: boolean },
  *   meanReceiverDistance: number,
  * }} OpticalScene
  */

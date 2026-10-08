@@ -33,7 +33,7 @@ export function buildTrough(c, receiver, optics) {
       },
       ...tubeReceiverSurfaces(receiver, 0, c.focalLength),
     ],
-    reference: { width: c.apertureWidth, label: 'Aperture width' },
+    reference: { width: c.apertureWidth, label: 'Aperture width', cosine: true },
     meanReceiverDistance: c.focalLength * (1 + (c.apertureWidth * c.apertureWidth) / (48 * c.focalLength * c.focalLength)),
   };
 }

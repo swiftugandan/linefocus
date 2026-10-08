@@ -4,6 +4,7 @@
 import { h, escapeHtml } from './dom.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
+let clipCount = 0;
 
 /**
  * @param {string} tag @param {Record<string, string | number>} [attrs] @param {string} [text]
@@ -150,14 +151,20 @@ export function lineChart({ series, x, y, width, height, markers = [] }) {
   // End labels help only while they stay apart; when line ends converge, the legend and tooltip carry identity.
   const ends = series.map(sr => sr.points.at(-1)).filter(p => p !== undefined).map(p => sy(/** @type {[number, number]} */ (p)[1])).sort((a, b) => a - b);
   const labelEnds = multi && ends.every((y, i) => i === 0 || y - ends[i - 1] >= 14);
+  // Marks never draw outside the plot area, whatever the data's range.
+  const clipId = `clip-${++clipCount}`;
+  svg.append(s('clipPath', { id: clipId }, undefined));
+  /** @type {SVGElement} */ (svg.lastChild).append(s('rect', { x: pad.left, y: pad.top - 4, width: pw, height: ph + 8 }));
+  const plot = s('g', { 'clip-path': `url(#${clipId})` });
+  svg.append(plot);
   for (const sr of series) {
     if (!sr.points.length) continue;
     const d = sr.points.map((p, i) => `${i ? 'L' : 'M'}${sx(p[0]).toFixed(1)},${sy(p[1]).toFixed(1)}`).join('');
     if (!multi) {
       const area = `${d}L${sx(sr.points.at(-1)?.[0] ?? 0).toFixed(1)},${sy(yd[0])}L${sx(sr.points[0][0]).toFixed(1)},${sy(yd[0])}Z`;
-      svg.append(s('path', { d: area, fill: sr.colour, opacity: 0.1 }));
+      plot.append(s('path', { d: area, fill: sr.colour, opacity: 0.1 }));
     }
-    svg.append(s('path', { d, fill: 'none', stroke: sr.colour, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', ...(sr.dashed ? { 'stroke-dasharray': '5 4' } : {}) }));
+    plot.append(s('path', { d, fill: 'none', stroke: sr.colour, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', ...(sr.dashed ? { 'stroke-dasharray': '5 4' } : {}) }));
     if (labelEnds) {
       const last = sr.points.at(-1);
       if (last) {

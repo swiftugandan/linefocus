@@ -44,15 +44,15 @@ export function tile(label, value, unit, note, hero = false) {
 /** @param {number | null} v */
 const angle = v => (v === null ? '–' : `±${fmt(v, v < 1 ? 2 : 1)}`);
 
-/** @param {{ result: AcceptanceJobResult | null, state: StudyState, width: number }} props */
-export function acceptanceView({ result, state, width }) {
+/** @param {{ design: Design, result: AcceptanceJobResult | null, state: StudyState, width: number }} props */
+export function acceptanceView({ design, result, state, width }) {
   const title = 'Acceptance';
   if (!result) return placeholder(title, state, 'Acceptance shows how far the sun can be off the aperture normal before the collector loses light.');
   const a = result.acceptance;
   const points = a.angles.map((x, i) => /** @type {[number, number]} */ ([x, a.relative[i] * 100]));
   const markers = a.halfAngle90 === null ? [] : [{ x: -a.halfAngle90, label: '' }, { x: a.halfAngle90, label: '90%' }];
   return h('div', { class: 'dock-inner' }, [
-    header(title, 'Transmission against misalignment across the aperture, relative to its best', state),
+    header(title, `Transmission as the sun moves off the aiming direction, at ${fmt(design.designPoint.longitudinalDeg, 0)}° along the axis`, state),
     layout([
       tile('Half-angle at 90%', angle(a.halfAngle90), '°', 'Misalignment at which transmission falls to 90% of its best', true),
       tile('Half-angle at 95%', angle(a.halfAngle95), '°', 'Misalignment at which transmission falls to 95% of its best'),
@@ -77,7 +77,7 @@ export function incidenceView({ design, scene, result, state, width }) {
   const title = 'Incidence angle';
   if (!result || !scene) return placeholder(title, state, 'The incidence study traces the collector at many sun angles. The day and year studies are built on it.');
   const g = result.grid;
-  const eta0 = interpolateEta(g, g.transversal[0], 0) || 1;
+  const eta0 = interpolateEta(g, g.tracking ? g.transversal[0] : 0, 0) || 1;
   const L = g.longitudinal.filter(l => l <= 85);
   /** @type {import('./charts.js').Series[]} */
   const series = g.tracking
@@ -86,7 +86,7 @@ export function incidenceView({ design, scene, result, state, width }) {
       { name: 'With end losses', colour: SERIES[1], points: L.map(l => [l, (interpolateEta(g, g.transversal[0], l) / eta0) * endLossFactor(scene, design, l) * 100]) },
     ]
     : [
-      { name: 'Across', colour: SERIES[0], points: L.map(t => [t, (interpolateEta(g, t, 0) / eta0) * 100]) },
+      { name: 'Across', colour: SERIES[0], points: g.transversal.filter(t => t >= 0 && t <= 85).map(t => [t, (interpolateEta(g, t, 0) / eta0) * 100]) },
       { name: 'Along', colour: SERIES[1], points: L.map(l => [l, (interpolateEta(g, 0, l) / eta0) * 100]) },
     ];
   const at = /** @param {number} deg */ deg => (g.tracking ? interpolateEta(g, g.transversal[0], deg) : interpolateEta(g, 0, deg)) / eta0;
@@ -99,9 +99,9 @@ export function incidenceView({ design, scene, result, state, width }) {
       tile('Row length', fmt(design.mounting.rowLength, 0), 'm', 'Used for the end-loss correction'),
     ], chartFrame({
       title: 'Incidence angle modifier',
-      subtitle: 'Cosine loss is not included',
+      subtitle: scene.reference.cosine ? 'Cosine loss on the aperture is not included' : "Includes the field's cosine, shading and blocking",
       chart: lineChart({ series, x: { label: g.tracking ? 'Incidence angle (°)' : 'Angle (°)', format: v => fmt(v, 0), domain: [0, 85], ticks: [0, 15, 30, 45, 60, 75] }, y: { label: 'Modifier (%)', format: v => fmt(v, 0), domain: [0, 100], ticks: [0, 25, 50, 75, 100] }, width: Math.max(280, width), height: 210 }),
-      table: dataTable(['Angle (°)', ...series.map(s => `${s.name} (%)`)], L.map((l, i) => [fmt(l, 0), ...series.map(s => fmt(s.points[i][1], 1))])),
+      table: dataTable(['Angle (°)', ...series.map(s => `${s.name} (%)`)], series[0].points.map(([x], i) => [fmt(x, 0), ...series.map(s => (s.points[i] ? fmt(s.points[i][1], 1) : '–'))])),
     })),
   ]);
 }
@@ -134,7 +134,7 @@ export function yearView({ design, result, state, width }) {
     layout([
       tile('Per square metre of aperture', fmt(y.perArea, 0), 'kWh/m²', 'Energy absorbed per year per square metre of reference aperture', true),
       tile('Per metre of collector', fmt(y.total / 1000, 2), 'MWh/m', 'Energy absorbed per year per metre of collector'),
-      tile('Annual efficiency', pct(y.efficiencyVsDni, 1), '', 'Absorbed energy over DNI on the aperture area, including cosine and end losses'),
+      tile('Efficiency against DNI', pct(y.efficiencyVsDni, 1), '', 'Absorbed energy over DNI on the aperture area, including cosine and end losses'),
       tile('Direct normal irradiation', fmt(y.dni, 0), 'kWh/m²', clear ? 'Clear-sky model' : `From ${y.source}`),
     ], chartFrame({
       title: 'Energy by month',

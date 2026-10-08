@@ -112,7 +112,7 @@ export function trace(scene, options, range) {
   const sampleSun = radialSampler(options.sun);
   const [sx, sy, sz] = sunVector(options.transversalDeg, options.longitudinalDeg);
   const cosIncidence = sy;
-  const reference = Math.max(0, options.dni * scene.reference.width * cosIncidence);
+  const reference = cosIncidence > 0 ? options.dni * scene.reference.width * (scene.reference.cosine ? cosIncidence : 1) : 0;
 
   /** @type {FluxMap[]} */
   const flux = [];

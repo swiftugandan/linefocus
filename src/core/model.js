@@ -251,7 +251,7 @@ export function newDesignId() {
 
 /** @param {CollectorType} type @returns {Collector} */
 export function defaultCollector(type) {
-  if (type === 'fresnel') return { type, rows: 16, mirrorWidth: 0.75, pitch: 0.95, receiverHeight: 7.4, curvature: 'cylindrical', curvatureRadius: 15, secondary: { kind: 'trapezoid', depth: 0.18, mouthWidth: 0.42 } };
+  if (type === 'fresnel') return { type, rows: 16, mirrorWidth: 0.75, pitch: 0.95, receiverHeight: 7.4, curvature: 'cylindrical', curvatureRadius: 15, secondary: { kind: 'trapezoid', depth: 0.12, mouthWidth: 0.55 } };
   if (type === 'cpc') return { type, acceptanceHalfAngleDeg: 35, truncation: 0.6, gap: 0.002 };
   return { type: 'trough', apertureWidth: 5.77, focalLength: 1.71 };
 }
@@ -284,6 +284,9 @@ export function defaultDesign() {
   };
 }
 
+/** Lower-case names used in default titles. */
+export const COLLECTOR_TITLES = { trough: 'trough', fresnel: 'linear Fresnel', cpc: 'CPC' };
+
 /** Reads a dotted path. @param {unknown} root @param {string} path @returns {unknown} */
 export function getPath(root, path) {
   let node = root;
@@ -311,10 +314,13 @@ export function switchVariant(design, path, tag) {
     const type = /** @type {CollectorType} */ (tag);
     design.collector = defaultCollector(type);
     const tube = /** @type {TubeReceiver} */ (defaultReceiver('tube'));
-    // Each collector starts with the receiver it is usually built with.
+    // Each collector starts with the receiver it is usually built with: a flat absorber in a cavity for an LFR.
     if (type === 'cpc') design.receiver = { ...tube, absorberDiameter: 0.047, envelope: { ...tube.envelope, outerDiameter: 0.058, transmittance: 0.92 } };
+    else if (type === 'fresnel') design.receiver = { ...(/** @type {FlatReceiver} */ (defaultReceiver('flat'))), width: 0.35 };
     else design.receiver = tube;
     design.mounting = { ...design.mounting, axisAzimuthDeg: type === 'cpc' ? 90 : 0, tiltDeg: 0 };
+    // A design still carrying its starting title follows the collector it now describes.
+    if (/^Untitled /.test(design.title)) design.title = `Untitled ${COLLECTOR_TITLES[type]}`;
     return;
   }
   if (path === 'receiver') { design.receiver = defaultReceiver(/** @type {Receiver['type']} */ (tag)); return; }
@@ -323,7 +329,7 @@ export function switchVariant(design, path, tag) {
     return;
   }
   if (path === 'collector.secondary' && design.collector.type === 'fresnel') {
-    design.collector.secondary = tag === 'trapezoid' ? { kind: 'trapezoid', depth: 0.18, mouthWidth: 0.42 } : { kind: 'none' };
+    design.collector.secondary = tag === 'trapezoid' ? { kind: 'trapezoid', depth: 0.12, mouthWidth: 0.55 } : { kind: 'none' };
     return;
   }
   if (path === 'weather' && tag === 'clear-sky') { design.weather = { source: 'clear-sky' }; return; }

@@ -2,7 +2,7 @@
  * dock and the shell together. window.linefocus exposes it for scripting and browser tests. */
 
 import { DesignStore } from './core/history.js';
-import { defaultDesign, parseDesign, serializeDesign, switchVariant, APP_VERSION } from './core/model.js';
+import { defaultDesign, parseDesign, serializeDesign, switchVariant, APP_VERSION, COLLECTOR_TITLES } from './core/model.js';
 import { buildDesignScene } from './core/design-scene.js';
 import { handlesFor, sunArc } from './core/handles.js';
 import { toRayOptics } from './core/rayoptics.js';
@@ -13,6 +13,7 @@ import { installCanvasInteractions } from './ui/canvas-interactions.js';
 import { designPointView, ledgerShares, concentrationProfile } from './ui/design-point-view.js';
 import { acceptanceView, incidenceView, dayView, yearView } from './ui/study-views.js';
 import { parseEpw } from './core/solar.js';
+import { interpolateEta } from './core/studies.js';
 import { Persistence } from './ui/persistence.js';
 import { Commands, Ribbon, Toasts, Dialogs, installTooltips } from './ui/shell.js';
 import { byId, h, fmt, pct, debounce, downloadBlob, fileName } from './ui/dom.js';
@@ -70,6 +71,8 @@ export class LinefocusApp {
     this.annual = { result: null, revision: -1, state: { running: false, progress: null, error: null, stale: false } };
     this.scheduleStudies = debounce(() => this.runStudies(), 350);
     this.fitScale = 0;
+    /** @type {string} */
+    this.fittedType = '';
     this.inspector = new Inspector(byId('inspectorBody'), { store: this.store, onError: message => this.toasts.show(message, { kind: 'error' }), figures: () => this.figures });
     this.ribbon = new Ribbon({ tabs: byId('tabs'), ribbon: byId('ribbon'), commands: this.commands, layout: this.ribbonLayout(), onShow: () => this.setPanel('ribbon', true) });
     this.autosave = debounce(() => this.save(), 450);
@@ -131,7 +134,8 @@ export class LinefocusApp {
       return;
     }
     this.renderAll();
-    if (detail.kind === 'load') this.fitView();
+    // A new design or a different collector has a different shape: frame it again.
+    if (detail.kind === 'load' || this.store.design.collector.type !== this.fittedType) this.fitView();
     this.saveState = 'pending';
     this.renderSaveState();
     this.autosave();
@@ -256,7 +260,7 @@ export class LinefocusApp {
     const scroll = dock.scrollTop;
     /** @type {HTMLElement} */
     let view;
-    if (this.study === 'acceptance') view = acceptanceView({ result: this.acceptance.result, state: this.acceptance.state, width: studyWidth });
+    if (this.study === 'acceptance') view = acceptanceView({ design, result: this.acceptance.result, state: this.acceptance.state, width: studyWidth });
     else if (this.study === 'incidence') view = incidenceView({ design, scene: this.scene, result: this.annual.result, state: this.annual.state, width: studyWidth });
     else if (this.study === 'day') view = dayView({ result: this.annual.result, state: this.annual.state, width: studyWidth });
     else if (this.study === 'year') view = yearView({ design, result: this.annual.result, state: this.annual.state, width: studyWidth });
@@ -280,12 +284,12 @@ export class LinefocusApp {
     /** @param {StudyState} st */
     const stateOf = st => (st.error ? ['error', 'Needs attention'] : st.running ? ['running', st.progress !== null && st.progress > 0 ? `${Math.round(st.progress * 100)}%` : 'Running'] : st.stale ? ['stale', 'Updating'] : ['done', 'Up to date']);
     const dp = /** @type {StudyState} */ ({ running: this.running, progress: null, error: this.error, stale: false });
-    const eta0 = annual ? annual.grid.eta[0][0] : 0;
+    const eta0 = annual ? (annual.grid.tracking ? annual.grid.eta[0][0] : interpolateEta(annual.grid, 0, 0)) : 0;
     /** @type {[StudyId, string, StudyState, (string | Node)[], string][]} */
     const items = [
       ['design-point', 'Design point', dp, t ? [pct(t.efficiency, 1), h('small', { text: 'optical efficiency' })] : ['–'], t ? `Intercept factor ${fmt(t.intercept, 3)}` : 'No trace yet'],
       ['acceptance', 'Acceptance', this.acceptance.state, a && a.halfAngle90 !== null ? [`±${fmt(a.halfAngle90, a.halfAngle90 < 1 ? 2 : 1)}°`, h('small', { text: 'at 90%' })] : ['–'], a ? `Concentration × acceptance ${a.cap90 === null ? '–' : fmt(a.cap90, 2)}` : 'Tolerance to misalignment'],
-      ['incidence', 'Incidence angle', this.annual.state, annual ? [fmt(eta0 > 0 ? (annual.grid.tracking ? annual.grid.eta[0][annual.grid.longitudinal.indexOf(45)] : annual.grid.eta[annual.grid.transversal.indexOf(45)][0]) / eta0 : 0, 3), h('small', { text: 'modifier at 45°' })] : ['–'], 'Efficiency against sun angle'],
+      ['incidence', 'Incidence angle', this.annual.state, annual ? [fmt(eta0 > 0 ? (annual.grid.tracking ? interpolateEta(annual.grid, annual.grid.transversal[0], 45) : interpolateEta(annual.grid, 45, 0)) / eta0 : 0, 3), h('small', { text: 'modifier at 45°' })] : ['–'], 'Efficiency against sun angle'],
       ['day', 'Day', this.annual.state, annual ? [fmt(annual.days[1].energy / 1000, 1), h('small', { text: 'kWh/m on 21 June' })] : ['–'], annual ? `21 December: ${fmt(annual.days[3].energy / 1000, 1)} kWh/m` : 'Equinoxes and solstices'],
       ['year', 'Year', this.annual.state, annual ? [fmt(annual.year.perArea, 0), h('small', { text: 'kWh/m² a year' })] : ['–'], annual ? (this.store.design.weather.source === 'clear-sky' ? 'Clear sky, an upper bound' : annual.year.source) : 'Energy over a year'],
     ];
@@ -343,6 +347,7 @@ export class LinefocusApp {
 
   fitView() {
     this.view.fit();
+    this.fittedType = this.store.design.collector.type;
     this.fitScale = this.view.camera.scale;
     this.updateZoom();
   }
@@ -416,7 +421,7 @@ export class LinefocusApp {
     if (!(await this.confirmReplace())) return;
     const design = defaultDesign();
     switchVariant(design, 'collector', type);
-    design.title = `Untitled ${COLLECTOR_NAMES[type].toLowerCase()}`;
+    design.title = `Untitled ${COLLECTOR_TITLES[type]}`;
     this.store.replace(design);
   }
 
@@ -465,14 +470,14 @@ export class LinefocusApp {
     /** @param {string} label @param {(design: Design) => void} mutate */
     const edit = (label, mutate) => { try { this.store.transact(label, mutate); } catch (e) { this.toasts.show(e instanceof Error ? e.message : String(e), { kind: 'error' }); } };
     /** @param {CollectorType} type */
-    const collector = type => ({ id: `collector-${type}`, label: COLLECTOR_NAMES[type], icon: type, hint: type === 'trough' ? 'Make this a parabolic trough' : `${COLLECTOR_NAMES[type]} collectors are on the way`, enabled: () => type === 'trough', pressed: () => d().collector.type === type, run: () => { if (d().collector.type !== type) edit(`Use ${COLLECTOR_NAMES[type].toLowerCase()}`, x => switchVariant(x, 'collector', type)); } });
+    const collector = type => ({ id: `collector-${type}`, label: COLLECTOR_NAMES[type], icon: type, hint: type === 'cpc' ? 'CPC collectors are on the way' : `Make this a ${COLLECTOR_TITLES[type]} collector`, enabled: () => type !== 'cpc', pressed: () => d().collector.type === type, run: () => { if (d().collector.type !== type) edit(`Make it a ${COLLECTOR_TITLES[type]}`, x => switchVariant(x, 'collector', type)); } });
     /** @param {number} rays @param {string} label */
     const quality = (rays, label) => ({ id: `rays-${rays}`, label, icon: 'rays', hint: `${fmt(rays, 0)} rays per trace`, pressed: () => d().simulation.rays === rays, run: () => edit(`Use ${label.toLowerCase()} quality`, x => { x.simulation.rays = rays; }) });
     /** @param {'showRays' | 'showMissed' | 'showFlux'} key */
     const viewToggle = key => () => { this.view[key] = !this.view[key]; this.view.request(); this.ribbon.refresh(); };
     this.commands.register([
       { id: 'new-trough', label: 'New trough', icon: 'trough', run: () => this.newDesign('trough') },
-      { id: 'new-fresnel', label: 'New linear Fresnel', icon: 'fresnel', enabled: () => false, hint: 'Linear Fresnel collectors are on the way', run: () => this.newDesign('fresnel') },
+      { id: 'new-fresnel', label: 'New linear Fresnel', icon: 'fresnel', run: () => this.newDesign('fresnel') },
       { id: 'new-cpc', label: 'New CPC', icon: 'cpc', enabled: () => false, hint: 'CPC collectors are on the way', run: () => this.newDesign('cpc') },
       { id: 'open', label: 'Open design', icon: 'open', shortcut: 'Ctrl+O', run: () => byId('fileInput').click() },
       { id: 'save', label: 'Download design', icon: 'download', shortcut: 'Ctrl+S', run: () => this.download() },

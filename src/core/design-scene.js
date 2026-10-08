@@ -3,6 +3,7 @@
 
 import { buildTrough, troughRimAngle } from './collectors/trough.js';
 import { tubeOuterRadius } from './collectors/receiver.js';
+import { buildFresnel, rowPositions } from './collectors/fresnel.js';
 import { sunshapeSigmaMrad } from './sunshape.js';
 
 /** @import { Design } from './model.js' */
@@ -18,11 +19,17 @@ export function tracksTransversally(design) {
   return design.collector.type === 'trough';
 }
 
+/** Collectors whose mirrors turn with the sun, so their geometry depends on the sun angle. @param {Design} design */
+export function tracksSun(design) {
+  return design.collector.type === 'fresnel';
+}
+
 /**
- * @param {Design} design
+ * Builds the cross-section. LFR rows are aimed for a sun at `aimDeg` across the field; other collectors ignore it.
+ * @param {Design} design @param {number} [aimDeg] defaults to the design point
  * @returns {{ scene: OpticalScene, figures: Figure[] }}
  */
-export function buildDesignScene(design) {
+export function buildDesignScene(design, aimDeg = design.designPoint.transversalDeg) {
   const c = design.collector, r = design.receiver;
   if (c.type === 'trough') {
     if (r.type !== 'tube') throw new Error('A parabolic trough needs an absorber tube.');
@@ -38,7 +45,22 @@ export function buildDesignScene(design) {
       ],
     };
   }
-  throw new Error(`${c.type === 'fresnel' ? 'Linear Fresnel' : 'CPC'} collectors are not available yet.`);
+  if (c.type === 'fresnel') {
+    const scene = buildFresnel(c, r, design.optics, aimDeg);
+    const outer = Math.max(...rowPositions(c).map(Math.abs));
+    const absorber = r.type === 'tube' ? Math.PI * r.absorberDiameter : r.width;
+    return {
+      scene,
+      figures: [
+        { key: 'fieldWidth', label: 'Field width', value: c.rows * c.pitch, unit: 'm', digits: 2, help: 'Rows × pitch' },
+        { key: 'fill', label: 'Ground cover', value: (c.mirrorWidth / c.pitch) * 100, unit: '%', digits: 1, help: 'Mirror width over pitch' },
+        { key: 'rim', label: 'Outer row angle', value: (Math.atan(outer / c.receiverHeight) * 180) / Math.PI, unit: '°', digits: 1, help: 'Angle from the receiver down to the outermost row, from vertical' },
+        { key: 'concentration', label: 'Geometric concentration', value: scene.reference.width / absorber, unit: '×', digits: 1, help: 'Mirror width over absorber perimeter or width' },
+        { key: 'opticalError', label: 'Combined optical error', value: combinedErrorMrad(design), unit: 'mrad', digits: 2, help: '√(σsun² + 4σslope² + σspec²), for comparison only' },
+      ],
+    };
+  }
+  throw new Error('CPC collectors are not available yet.');
 }
 
 /** The usual combined-error estimate. Shown for comparison; the trace does not use it. @param {Design} design */
