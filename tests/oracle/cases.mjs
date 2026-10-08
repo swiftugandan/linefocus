@@ -2,6 +2,7 @@
  * way: ideal mirrors, opaque backs, collimated light and flat absorbers. */
 
 import { rowPositions, rowNormal, mirrorRow, buildFresnel } from '../../src/core/collectors/fresnel.js';
+import { buildCpc } from '../../src/core/collectors/cpc.js';
 
 const MIRROR = { kind: 'mirror', reflectance: 1, slopeErrorMrad: 0, specularityMrad: 0 };
 const ABSORBER = { kind: 'absorber', absorptance: 1 };
@@ -31,5 +32,10 @@ export const ORACLE_CASES = [
     { type: 'fresnel', rows: 8, mirrorWidth: 0.5, pitch: 0.6, receiverHeight: 3, curvature: 'cylindrical', curvatureRadius: 6.5, secondary: { kind: 'none' } },
     { type: 'flat', width: 0.12, absorptance: 1, insulation: 0.03, cover: { mode: 'none', gap: 0, overhang: 0, thickness: 0.004, refractiveIndex: 1.5, extinction: 0, transmittance: 1 } },
     { reflectance: 1, slopeErrorMrad: 0, specularityMrad: 0 }, 20), sun: COLLIMATED, transversalDeg: 20 },
+  // A truncated flat-absorber CPC beyond its acceptance angle, where only part of the light gets through.
+  { name: 'cpc-truncated-beyond-acceptance', scene: (({ aperture, fullAperture, height, fullHeight, bottom, absorberSize, ...scene }) => scene)(buildCpc(
+    { type: 'cpc', acceptanceHalfAngleDeg: 20, truncation: 0.5, gap: 0 },
+    { type: 'flat', width: 0.1, absorptance: 1, insulation: 0.01, cover: { mode: 'none', gap: 0, overhang: 0, thickness: 0.004, refractiveIndex: 1.5, extinction: 0, transmittance: 1 } },
+    { reflectance: 1, slopeErrorMrad: 0, specularityMrad: 0 })), sun: COLLIMATED, transversalDeg: 25 },
   { name: 'fresnel-60-degrees', scene: scene([...fresnelRows(7, 0.5, 0.5, 2, 60), absorber(0.3, 2)], 3.5), sun: COLLIMATED, transversalDeg: 60 },
 ];

@@ -470,7 +470,7 @@ export class LinefocusApp {
     /** @param {string} label @param {(design: Design) => void} mutate */
     const edit = (label, mutate) => { try { this.store.transact(label, mutate); } catch (e) { this.toasts.show(e instanceof Error ? e.message : String(e), { kind: 'error' }); } };
     /** @param {CollectorType} type */
-    const collector = type => ({ id: `collector-${type}`, label: COLLECTOR_NAMES[type], icon: type, hint: type === 'cpc' ? 'CPC collectors are on the way' : `Make this a ${COLLECTOR_TITLES[type]} collector`, enabled: () => type !== 'cpc', pressed: () => d().collector.type === type, run: () => { if (d().collector.type !== type) edit(`Make it a ${COLLECTOR_TITLES[type]}`, x => switchVariant(x, 'collector', type)); } });
+    const collector = type => ({ id: `collector-${type}`, label: COLLECTOR_NAMES[type], icon: type, hint: `Make this a ${COLLECTOR_TITLES[type]} collector`, pressed: () => d().collector.type === type, run: () => { if (d().collector.type !== type) edit(`Make it a ${COLLECTOR_TITLES[type]}`, x => switchVariant(x, 'collector', type)); } });
     /** @param {number} rays @param {string} label */
     const quality = (rays, label) => ({ id: `rays-${rays}`, label, icon: 'rays', hint: `${fmt(rays, 0)} rays per trace`, pressed: () => d().simulation.rays === rays, run: () => edit(`Use ${label.toLowerCase()} quality`, x => { x.simulation.rays = rays; }) });
     /** @param {'showRays' | 'showMissed' | 'showFlux'} key */
@@ -478,7 +478,7 @@ export class LinefocusApp {
     this.commands.register([
       { id: 'new-trough', label: 'New trough', icon: 'trough', run: () => this.newDesign('trough') },
       { id: 'new-fresnel', label: 'New linear Fresnel', icon: 'fresnel', run: () => this.newDesign('fresnel') },
-      { id: 'new-cpc', label: 'New CPC', icon: 'cpc', enabled: () => false, hint: 'CPC collectors are on the way', run: () => this.newDesign('cpc') },
+      { id: 'new-cpc', label: 'New CPC', icon: 'cpc', run: () => this.newDesign('cpc') },
       { id: 'open', label: 'Open design', icon: 'open', shortcut: 'Ctrl+O', run: () => byId('fileInput').click() },
       { id: 'save', label: 'Download design', icon: 'download', shortcut: 'Ctrl+S', run: () => this.download() },
       { id: 'rename', label: 'Rename design', icon: 'new', palette: true, run: async () => { const name = await this.dialogs.prompt('Rename design', 'Title', d().title); if (name !== null) edit('Rename design', x => { x.title = name.trim().slice(0, 160) || 'Untitled'; }); } },

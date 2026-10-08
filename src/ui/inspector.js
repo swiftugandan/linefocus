@@ -48,7 +48,6 @@ const VISIBLE = {
 /** Union variants that cannot be chosen in the current design, with the reason. */
 /** @type {Record<string, (d: Design, tag: string) => string | null>} */
 const UNAVAILABLE = {
-  collector: (_, tag) => (tag === 'cpc' ? 'CPC collectors are on the way' : null),
   receiver: (d, tag) => (d.collector.type === 'trough' && tag === 'flat' ? 'A parabolic trough uses an absorber tube' : null),
   weather: (_, tag) => (tag === 'epw' ? 'Import an EPW file from the Site tab' : null),
 };

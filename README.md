@@ -2,7 +2,7 @@
 
 Linefocus is a browser app for designing line-focus solar collectors. It traces sunlight through the collector's cross-section, ray by ray, and shows where every watt goes. You can see how much reaches the absorber and how much is lost to the mirror, the glass, the absorber's own reflection or spillage. There is nothing to install, no account and no server. Your design stays on your computer.
 
-Linefocus designs parabolic troughs and linear Fresnel reflectors. Compound parabolic concentrators are being built next.
+Linefocus designs parabolic troughs, linear Fresnel reflectors and compound parabolic concentrators (CPCs).
 
 **Try it:** [swiftugandan.github.io/linefocus](https://swiftugandan.github.io/linefocus/), or download `Linefocus.html` from the same page and open it offline.
 
@@ -54,7 +54,7 @@ The design saves itself in your browser as you work. The title bar says "Saved o
 | If you want to change… | Look in |
 |---|---|
 | The physics: tracing, materials, the ledger | `src/core/tracer.js`, `src/core/geometry.js` |
-| Collector and receiver geometry | `src/core/collectors/` (`trough.js`, `fresnel.js`, `receiver.js`) |
+| Collector and receiver geometry | `src/core/collectors/` (`trough.js`, `fresnel.js`, `cpc.js`, `receiver.js`) |
 | The design file format, defaults and rules | `src/core/model.js` (the field spec drives the validator, the schema and the inspector) |
 | Undo and redo | `src/core/history.js` |
 | Background tracing | `src/worker/` |
@@ -100,7 +100,6 @@ Every push to `main` runs `.github/workflows/pages.yml`. It type-checks, runs th
 
 ## What it doesn't do
 
-- It designs parabolic troughs and linear Fresnel reflectors; CPCs are on the way.
 - It traces a 2D cross-section of an infinitely long collector. End losses are an analytic correction.
 - Mirrors are specular with Gaussian errors. It does not model dust or diffuse scattering.
 - It reports absorbed optical power, not heat loss or fluid temperature.

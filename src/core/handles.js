@@ -3,13 +3,14 @@
 
 import { tracksTransversally } from './design-scene.js';
 import { opticalBounds } from './tracer.js';
+import { buildCpc } from './collectors/cpc.js';
 
 /** @import { Design } from './model.js' */
 /** @import { OpticalScene } from './types.js' */
 
 /**
- * @typedef {{ id: string, x: number, y: number, axis: 'x' | 'y' | 'angle', label: string, cx?: number, cy?: number }} Handle
- *   For 'angle' handles, (cx, cy) is the pivot.
+ * @typedef {{ id: string, x: number, y: number, axis: 'x' | 'y' | 'angle', label: string, cx?: number, cy?: number, base?: number, span?: number }} Handle
+ *   For 'angle' handles, (cx, cy) is the pivot. For a proportional handle, the value is (position − base) / span.
  */
 
 /** Radius of the sun handle's arc, relative to the scene size. */
@@ -44,6 +45,10 @@ export function handlesFor(design, scene) {
     out.push({ id: 'receiverHeight', x: 0, y: c.receiverHeight + 0.35, axis: 'y', label: 'Receiver height' });
     if (c.rows > 1) out.push({ id: 'pitch', x: outer, y: -0.25, axis: 'x', label: 'Row pitch' });
   }
+  if (c.type === 'cpc') {
+    const cpc = buildCpc(c, design.receiver, design.optics);
+    out.push({ id: 'truncation', x: cpc.aperture / 2, y: cpc.bottom + cpc.height, axis: 'y', label: 'Height kept', base: cpc.bottom, span: cpc.fullHeight });
+  }
   const arc = sunArc(scene);
   const angle = (design.designPoint.transversalDeg * Math.PI) / 180;
   out.push({ id: 'sun', x: arc.cx + arc.r * Math.sin(angle), y: arc.cy + arc.r * Math.cos(angle), axis: 'angle', label: tracksTransversally(design) ? 'Misalignment to the sun' : 'Sun angle', cx: arc.cx, cy: arc.cy });
@@ -63,6 +68,9 @@ export function applyHandle(design, handle, x, y) {
   else if (handle.id === 'focal' && c.type === 'trough') c.focalLength = Math.min(6, Math.max(0.02, snap(y, 0.005)));
   else if (handle.id === 'receiverHeight' && c.type === 'fresnel') c.receiverHeight = Math.min(40, Math.max(0.1, snap(y - 0.35, 0.01)));
   else if (handle.id === 'pitch' && c.type === 'fresnel' && c.rows > 1) c.pitch = Math.min(6, Math.max(c.mirrorWidth, snap(Math.abs(x) / ((c.rows - 1) / 2), 0.005)));
+  else if (handle.id === 'truncation' && c.type === 'cpc') {
+    c.truncation = Math.min(1, Math.max(0.05, snap((y - (handle.base ?? 0)) / (handle.span ?? 1), 0.01)));
+  }
   else if (handle.id === 'sun') {
     const deg = (Math.atan2(x - (handle.cx ?? 0), y - (handle.cy ?? 0)) * 180) / Math.PI;
     design.designPoint.transversalDeg = Math.min(89, Math.max(-89, snap(deg, 0.1)));

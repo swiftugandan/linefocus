@@ -25,6 +25,10 @@
       "fraction": 0.6444434671709398,
       "rays": 75060
     },
+    "cpc-truncated-beyond-acceptance": {
+      "fraction": 0.13739946380697052,
+      "rays": 5318
+    },
     "fresnel-60-degrees": {
       "fraction": 0.35517745580220655,
       "rays": 43080

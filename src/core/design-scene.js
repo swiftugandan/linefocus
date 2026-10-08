@@ -4,6 +4,7 @@
 import { buildTrough, troughRimAngle } from './collectors/trough.js';
 import { tubeOuterRadius } from './collectors/receiver.js';
 import { buildFresnel, rowPositions } from './collectors/fresnel.js';
+import { buildCpc } from './collectors/cpc.js';
 import { sunshapeSigmaMrad } from './sunshape.js';
 
 /** @import { Design } from './model.js' */
@@ -60,7 +61,18 @@ export function buildDesignScene(design, aimDeg = design.designPoint.transversal
       ],
     };
   }
-  throw new Error('CPC collectors are not available yet.');
+  const built = buildCpc(c, r, design.optics);
+  const { aperture, fullAperture, height, fullHeight, bottom, absorberSize, ...scene } = built;
+  return {
+    scene,
+    figures: [
+      { key: 'aperture', label: 'Aperture width', value: aperture * 1000, unit: 'mm', digits: 0 },
+      { key: 'height', label: 'Reflector height', value: height * 1000, unit: 'mm', digits: 0, help: 'From the lowest point of the reflector to the top' },
+      { key: 'concentration', label: 'Geometric concentration', value: aperture / absorberSize, unit: '×', digits: 2, help: 'Aperture width over absorber perimeter or width' },
+      { key: 'ideal', label: 'Ideal concentration', value: 1 / Math.sin((c.acceptanceHalfAngleDeg * Math.PI) / 180), unit: '×', digits: 2, help: '1 / sin θa, for a full CPC with no gap' },
+      { key: 'fullAperture', label: 'Untruncated aperture', value: fullAperture * 1000, unit: 'mm', digits: 0 },
+    ],
+  };
 }
 
 /** The usual combined-error estimate. Shown for comparison; the trace does not use it. @param {Design} design */

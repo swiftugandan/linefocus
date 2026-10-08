@@ -72,7 +72,7 @@ export function designPointView({ design, result, error, running, width }) {
   const peak = profile.reduce((m, [, v]) => Math.max(m, v), 0);
 
   const tiles = h('div', { class: 'tiles' }, [
-    tile('Optical efficiency', pct(t.efficiency, 1), '', 'Absorbed ÷ sunlight on the aperture', true),
+    tile('Optical efficiency', pct(t.efficiency, 1), '', `Absorbed over ${referencePhrase(result)}`, true),
     tile('Intercept factor', fmt(t.intercept, 3), '', 'Reflected light reaching the absorber'),
     tile('Absorbed', fmt(absorbedKw, 2), 'kW/m', 'Per metre of collector'),
     tile('Peak concentration', fmt(peak, 0), '×', 'Highest local flux over DNI'),
@@ -81,7 +81,7 @@ export function designPointView({ design, result, error, running, width }) {
   const rows = ledgerShares(result);
   const ledger = chartFrame({
     title: 'Where the sunlight goes',
-    subtitle: `Share of ${fmt(t.reference / 1000, 2)} kW/m on the aperture`,
+    subtitle: `Share of ${fmt(t.reference / 1000, 2)} kW/m ${result.scene.reference.cosine ? 'on the aperture' : 'of DNI on the mirrors'}`,
     chart: barList({ rows: rows.map(r => ({ label: r.label, value: r.share, emphasis: r.key === 'absorbed', note: r.note })), max: 1, width: Math.max(260, width), format: v => pct(v, v < 0.01 ? 2 : 1) }),
     table: dataTable(['Destination', 'Share', 'kW/m'], rows.map(r => [r.label, pct(r.share, 2), fmt((r.share * t.reference) / 1000, 3)])),
   });
@@ -100,6 +100,12 @@ export function designPointView({ design, result, error, running, width }) {
   }) : null;
 
   return h('div', { class: 'dock-inner' }, [header, tiles, h('div', { class: 'charts' }, [ledger, flux])]);
+}
+
+/** What the efficiency is measured against, in words. @param {DesignPointResult} result */
+export function referencePhrase(result) {
+  const ref = result.scene.reference;
+  return ref.cosine ? `the sunlight on the ${ref.label.toLowerCase()}, with cos θ` : `DNI on the ${ref.label.toLowerCase()}, without cos θ`;
 }
 
 /** @param {string} label @param {string} value @param {string} unit @param {string} note @param {boolean} [hero] */

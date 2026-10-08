@@ -55,9 +55,10 @@ export async function acceptanceStudy(design, scene, progress) {
   const centre = at(0);
   // Widen the sweep until transmission has clearly fallen away on both sides, up to 45°.
   let range = design.collector.type === 'cpc' ? Math.max(2, design.collector.acceptanceHalfAngleDeg * 1.6) : 0.4;
-  while (range < 45) {
+  range = Math.min(range, 89 - Math.abs(aim));
+  while (range < Math.min(45, 89 - Math.abs(aim))) {
     if (Math.max(at(range).efficiency, at(-range).efficiency) < 0.35 * centre.efficiency) break;
-    range = Math.min(45, range * 1.6);
+    range = Math.min(45, 89 - Math.abs(aim), range * 1.6);
   }
   const steps = 24;
   /** @type {number[]} */

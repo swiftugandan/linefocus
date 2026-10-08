@@ -121,7 +121,7 @@ export const COLLECTOR_SPEC = union('Collector', 'type', {
   cpc: ['CPC', object('Compound parabolic concentrator', {
     type: constant('cpc'),
     acceptanceHalfAngleDeg: number('Acceptance half-angle', '°', 1, 89, { step: 0.5 }),
-    truncation: number('Height kept', '', 0, 1, { exclusiveMin: true, display: PERCENT, step: 0.01, help: 'Fraction of the full CPC height' }),
+    truncation: number('Height kept', '', 0, 1, { exclusiveMin: true, display: PERCENT, step: 0.01, help: "Share of the full CPC's height kept, measured up from the reflector's lowest point" }),
     gap: number('Clearance gap', 'm', 0, 0.05, { display: MM, step: 0.0005, help: 'Space between the receiver and the reflector cusp' }),
   })],
 });
@@ -318,7 +318,9 @@ export function switchVariant(design, path, tag) {
     if (type === 'cpc') design.receiver = { ...tube, absorberDiameter: 0.047, envelope: { ...tube.envelope, outerDiameter: 0.058, transmittance: 0.92 } };
     else if (type === 'fresnel') design.receiver = { ...(/** @type {FlatReceiver} */ (defaultReceiver('flat'))), width: 0.35 };
     else design.receiver = tube;
-    design.mounting = { ...design.mounting, axisAzimuthDeg: type === 'cpc' ? 90 : 0, tiltDeg: 0 };
+    // A CPC lies east–west, tilted towards the equator by about the latitude so the sun stays inside its acceptance.
+    const tilt = type === 'cpc' ? Math.round(design.site.latitude) : 0;
+    design.mounting = { ...design.mounting, axisAzimuthDeg: type === 'cpc' ? 90 : 0, tiltDeg: Math.max(-90, Math.min(90, tilt)) };
     // A design still carrying its starting title follows the collector it now describes.
     if (/^Untitled /.test(design.title)) design.title = `Untitled ${COLLECTOR_TITLES[type]}`;
     return;

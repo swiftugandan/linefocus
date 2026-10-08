@@ -85,7 +85,7 @@ The azimuth of the offset is uniform. The offset is applied in a plane perpendic
 
 At every reflection off a primary or secondary mirror, the surface normal is perturbed by a Gaussian **slope error** σ_slope on each of two axes. This turns into an angular error of about 2σ_slope in the reflected ray. A separate Gaussian **specularity error** σ_spec, also per axis, is then applied to the reflected direction. Slope error and specularity are separate inputs. The default specularity is zero so the same effect isn't counted twice. Measured slope-error data usually already includes the mirror's specular spread.
 
-A **tracking error** is a fixed angular misalignment of a tracking collector at the design point. The acceptance study sweeps it.
+A trough's **tracking error** is a constant misalignment set on its mounting. It applies only when the day and year studies convert sun positions to the collector frame. The design point carries its own misalignment in θT, and the acceptance study sweeps misalignment directly.
 
 For comparison only, the app also shows the usual combined estimate σ_total² = σ_sun² + 4σ_slope² + σ_spec², where σ_sun is the sunshape's standard deviation. The trace does not use this combined value.
 
@@ -176,15 +176,15 @@ P(θ) = r_d·(sin θ, −cos θ) − ρ(θ)·(cos θ, sin θ)
 ρ(θ) = r_d·(θ + θa + π/2 − cos(θ − θa)) / (1 + sin(θ − θa))   for θa + π/2 ≤ θ ≤ 3π/2 − θa
 ```
 
-Both CPCs can be truncated at a chosen height, which trades concentration for reflector material. The ideal concentration of a full CPC is 1/sin θa. With no errors, γ is 1 inside ±θa and drops sharply outside. The tests check both.
+Both CPCs can be truncated, which trades concentration for reflector material. Truncation keeps a share of the full height measured up from the reflector's lowest point: the absorber plane for a flat CPC, and the bottom of the involute below the cusp for a tube CPC. A flat absorber faces up with its insulation below, and any glass cover spans the absorber only. A truncated CPC still collects some light beyond θa, and the tests check that too. The ideal concentration of a full CPC is 1/sin θa. With no errors, γ is 1 inside ±θa and drops sharply outside. The tests check both.
 
 ## Studies
 
 | Study | What it computes |
 |---|---|
 | Design point | One trace at the chosen θT, θL: ledger, η, γ, absorber flux map, sample ray paths |
-| Acceptance | η against misalignment θT at θL = 0, relative to its best value. Reports the half-angles where it falls to 95% and 90%, and the concentration–acceptance product C·sin(θ₉₀). The sweep widens until transmission falls below 35% of its best |
-| Incidence angle | η on a grid: θL from 0° to 85° in 5° steps plus 89°. A tracking trough uses one row at its tracking error; fixed collectors add θT on the same steps. The modifier is η(θT, θL)/η(0, 0), without the cosine |
+| Acceptance | η as the sun moves by δ across the aperture while the collector stays aimed: along the aperture normal for a trough or CPC, and at the design point's sun for LFR rows. Runs at the design's θL and covers both sides. Reports the half-angles (mean of the two sides) where η falls to 95% and 90% of its best, and the concentration–acceptance product C·sin(θ₉₀). The sweep widens until η falls below 35% of its best on both sides, up to 45° from the aim, and never past 89° |
+| Incidence angle | η on a grid. A tracking trough uses one row at its tracking error, with θL from 0° to 85° in 5° steps plus 89°. Fixed collectors use θT from −89° to 89° (signed, 5° steps, since a geometry need not be symmetric) and θL from 0° to 80° in 10° steps plus 89°; on these near-cosine curves bilinear interpolation stays within about 0.5%. The modifier is η(θT, θL)/η(0, 0). Collectors whose rows track the sun are rebuilt for each θT |
 | Day | Absorbed W/m every 10 minutes on 21 March, 21 June, 21 September and 21 December |
 | Year | Hourly sum over a 365-day year at the middle of each hour: by month, per metre, per m² of reference aperture, and as a share of DNI on the aperture area |
 
@@ -223,7 +223,7 @@ Clear-sky totals are an upper bound with no cloud. Treat them as indicative. Imp
 
 Linefocus checks itself against three kinds of evidence. All of them run in `npm test`.
 
-1. **Analytic results.** These include ledger conservation at several sun angles, Fresnel reflectance at normal incidence ((n−1)/(n+1))², total internal reflection, the Bravais index, the 2σ slope-error rule, sunshape bounds, and the trough's minimum receiver size. The solar model is checked against Meeus's worked examples (Julian day, declination), the solstice declinations, the extremes of the equation of time, an overhead sun at noon on the Tropic of Cancer, and the ASHRAE formula. The year must add up month by month, and a clear day must be symmetric about solar noon.
+1. **Analytic results.** These include ledger conservation at several sun angles, Fresnel reflectance at normal incidence ((n−1)/(n+1))², total internal reflection, the Bravais index, the 2σ slope-error rule, sunshape bounds, the trough's minimum receiver size, LFR rows reflecting the sun centre onto the receiver centre at sun angles from −60° to 70°, and a symmetric LFR giving the same efficiency either side of the axis. The solar model is checked against Meeus's worked examples (Julian day, declination), the solstice declinations, the extremes of the equation of time, an overhead sun at noon on the Tropic of Cancer, and the ASHRAE formula. The year must add up month by month, and a clear day must be symmetric about solar noon.
 2. **A semi-analytic intercept factor.** With a Gaussian sun and Gaussian slope error, a ray leaving a trough mirror at x has a Gaussian transversal error with σ = √(σ_sun² + 4σ_slope²). It reaches a tube of radius r at distance d(x) = f + x²/4f when the error is smaller than asin(r/d). Averaging that probability over the aperture gives γ to within 0.003 of the trace.
 3. **An independent tracer.** Six scenes are traced by Linefocus and by [Ray Optics Simulation](https://phydemo.app/ray-optics/) at pinned commit `daf7677`: troughs on and off axis, and LFR fields at three sun angles, one with heavy blocking. The scenes use ideal mirrors, collimated light and flat absorbers. The exported scenes and Ray Optics' detector results are committed under `tests/oracle/`, and the tests require agreement within 0.002 of the beam power. At the time of writing every case agrees within 0.0001. `scripts/ray-optics-oracle.mjs` regenerates the goldens.
 

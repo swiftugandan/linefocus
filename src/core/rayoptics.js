@@ -127,7 +127,7 @@ function sampleWithNormals(shape, sign) {
     return out;
   }
   if (shape.kind === 'parabola') {
-    const c = Math.cos(shape.angle), s = Math.sin(shape.angle), n = 64;
+    const c = Math.cos(shape.angle), s = Math.sin(shape.angle), n = 240;
     for (let i = 0; i <= n; i++) {
       const u = shape.u0 + ((shape.u1 - shape.u0) * i) / n, v = (u * u) / (4 * shape.f);
       const lnx = -u / (2 * shape.f), len = Math.hypot(lnx, 1);

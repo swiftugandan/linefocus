@@ -198,7 +198,7 @@
             },
             "truncation": {
               "type": "number",
-              "description": "Height kept. Fraction of the full CPC height",
+              "description": "Height kept. Share of the full CPC's height kept, measured up from the reflector's lowest point",
               "exclusiveMinimum": 0,
               "maximum": 1
             },
