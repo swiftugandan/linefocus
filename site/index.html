@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#0e1625">
+<title>Linefocus: trace sunlight through line-focus solar collectors</title>
+<meta name="description" content="Linefocus is a free browser app for designing parabolic trough collectors. It traces sunlight ray by ray, shows where every watt goes, and keeps your designs on your own computer.">
+<link rel="icon" href="{{favicon}}" type="image/svg+xml">
+<style>
+@font-face { font-family: "Archivo"; src: url("./fonts/archivo.woff2") format("woff2-variations"); font-weight: 100 900; font-stretch: 62% 125%; font-display: swap; }
+:root {
+  --night: #0e1625; --night-2: #141f33; --ink: #182033; --sun: #f2a516; --sun-strong: #e08f00; --steel: #2c5d99;
+  --paper: #eef1f5; --panel: #ffffff; --line: #dbe0e8; --text: #253047; --muted: #5d6a82; --on-night: #e3e8f2; --on-night-muted: #9aa7c0;
+  --font: "Archivo", "Helvetica Neue", Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--paper); color: var(--text); font: 17px/1.55 var(--font); -webkit-font-smoothing: antialiased; }
+a { color: var(--steel); }
+:focus-visible { outline: 2px solid var(--sun); outline-offset: 3px; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+
+header.top { position: absolute; inset: 0 0 auto; z-index: 2; }
+header.top .wrap { display: flex; align-items: center; gap: 24px; height: 72px; }
+.brand { display: flex; align-items: center; gap: 10px; color: var(--on-night); text-decoration: none; font-size: 19px; font-weight: 640; font-stretch: 122%; }
+.brand svg { width: 30px; height: 30px; }
+nav.links { margin-left: auto; display: flex; align-items: center; gap: 26px; font-size: 15px; }
+nav.links a { color: var(--on-night-muted); text-decoration: none; }
+nav.links a:hover { color: var(--on-night); }
+nav.links .open { color: #1d1503; background: var(--sun); padding: 9px 16px; border-radius: 8px; font-weight: 600; }
+nav.links .open:hover { color: #1d1503; background: var(--sun-strong); }
+
+.hero { position: relative; background: radial-gradient(1200px 520px at 72% 18%, #18284a 0%, var(--night) 62%); color: var(--on-night); overflow: hidden; }
+.hero .wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); align-items: center; gap: 40px; min-height: 680px; padding-top: 96px; padding-bottom: 56px; }
+.hero h1 { text-wrap: balance; margin: 0 0 22px; font-size: clamp(42px, 5.6vw, 74px); line-height: 1.02; font-weight: 620; font-stretch: 116%; letter-spacing: -0.02em; }
+.hero p.lede { margin: 0 0 32px; max-width: 34em; color: var(--on-night-muted); font-size: 19px; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 22px; }
+.button { display: inline-flex; align-items: center; height: 50px; padding: 0 24px; border-radius: 10px; background: var(--sun); color: #1d1503; font-weight: 600; text-decoration: none; font-size: 17px; }
+.button:hover { background: var(--sun-strong); }
+.quiet { color: var(--on-night); font-size: 16px; }
+.meta { margin-top: 26px; color: var(--on-night-muted); font-size: 14px; }
+.hero-trace { width: 100%; height: auto; overflow: visible; }
+.hero-trace .ray-in { stroke: rgba(255, 214, 120, .2); stroke-width: .006; fill: none; }
+.hero-trace .ray-hit { stroke: rgba(255, 186, 48, .55); stroke-width: .007; fill: none; }
+.hero-trace .ray-spill { stroke: rgba(255, 104, 72, .6); stroke-width: .007; fill: none; }
+.hero-trace .mirror { stroke: #e3e9f4; stroke-width: .035; fill: none; stroke-linecap: round; }
+.hero-trace .absorber { fill: #1f2b4d; stroke: #d39443; stroke-width: .012; }
+.hero-trace .glass { fill: none; stroke: rgba(132, 214, 236, .75); stroke-width: .008; }
+@media (prefers-reduced-motion: no-preference) {
+  .hero-trace path.ray-in, .hero-trace path.ray-hit, .hero-trace path.ray-spill { animation: fade 1.6s ease-out both; }
+  .hero-trace path.ray-hit, .hero-trace path.ray-spill { animation-delay: .5s; }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+}
+
+section { padding: 88px 0; }
+section h2 { text-wrap: balance; margin: 0 0 14px; font-size: clamp(28px, 3.2vw, 40px); line-height: 1.12; font-weight: 620; font-stretch: 110%; letter-spacing: -0.015em; color: var(--ink); max-width: 22em; }
+section p.intro { margin: 0 0 40px; max-width: 40em; color: var(--muted); font-size: 18px; }
+.shot { margin: -40px 0 0; position: relative; z-index: 1; }
+.shot img { display: block; width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); box-shadow: 0 30px 80px rgba(24, 32, 51, .22); }
+.shot figcaption { margin-top: 14px; color: var(--muted); font-size: 15px; }
+
+.ledger { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; align-items: start; }
+.ledger .figure-number { font-size: clamp(64px, 8vw, 104px); line-height: 1; font-weight: 600; font-stretch: 112%; letter-spacing: -0.03em; color: var(--ink); }
+.ledger .figure-label { margin-top: 10px; color: var(--muted); }
+.bars { display: grid; gap: 14px; padding: 26px 28px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+.bar { display: grid; grid-template-columns: 210px minmax(0, 1fr) 64px; align-items: center; gap: 14px; font-size: 15px; }
+.bar .track { height: 14px; }
+.bar .fill { height: 14px; border-radius: 0 4px 4px 0; background: #7b8aa6; min-width: 2px; }
+.bar.hit .fill { background: var(--sun); }
+.bar .value { text-align: right; font-variant-numeric: tabular-nums; }
+.bars .note { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+
+.points { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px 48px; margin: 0; }
+.points dt { font-size: 19px; font-weight: 600; color: var(--ink); margin-bottom: 8px; }
+.points dd { margin: 0; color: var(--muted); }
+
+.proof { background: var(--night); color: var(--on-night); }
+.proof h2 { color: var(--on-night); }
+.proof p.intro { color: var(--on-night-muted); }
+.proof-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.proof-item { padding: 24px; border: 1px solid #263450; border-radius: 14px; background: var(--night-2); }
+.proof-item strong { display: block; font-size: 34px; font-weight: 600; font-stretch: 110%; color: var(--sun); margin-bottom: 6px; }
+.proof-item span { color: var(--on-night-muted); font-size: 15px; }
+
+.limits ul { margin: 0; padding-left: 20px; max-width: 46em; color: var(--muted); }
+.limits li { margin: 8px 0; }
+
+footer { padding: 36px 0 48px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 28px; }
+footer a { color: var(--muted); }
+
+@media (max-width: 920px) {
+  .hero .wrap { grid-template-columns: 1fr; min-height: 0; padding-top: 104px; }
+  .ledger { grid-template-columns: 1fr; gap: 28px; }
+  .points, .proof-grid { grid-template-columns: 1fr; gap: 24px; }
+  nav.links a:not(.open) { display: none; }
+  section { padding: 64px 0; }
+}
+@media (max-width: 560px) {
+  .wrap { padding: 0 16px; }
+  .bar { grid-template-columns: 1fr 64px; }
+  .bar .track { grid-column: 1 / -1; grid-row: 2; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="./" aria-label="Linefocus home">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 7C5.5 29 26.5 29 28 7" fill="none" stroke="#e3e8f2" stroke-width="2.4" stroke-linecap="round"/><path d="M6.9 17.6 16 13.8M16 23.5V13.8M25.1 17.6 16 13.8" fill="none" stroke="#f2a516" stroke-width="1.6" stroke-linecap="round"/><circle cx="16" cy="13.8" r="2.7" fill="#f2a516"/></svg>
+      linefocus
+    </a>
+    <nav class="links" aria-label="Site">
+      <a href="#how">How it works</a>
+      <a href="{{repo}}/blob/main/docs/PHYSICS.md">Physics</a>
+      <a href="{{repo}}">Source</a>
+      <a class="open" href="./app/">Open Linefocus</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="wrap">
+      <div>
+        <h1>See where the sunlight goes.</h1>
+        <p class="lede">Linefocus traces sunlight through a solar collector's cross-section, ray by ray, in your browser. Change the mirror, the receiver or the sun and the energy balance updates in a fraction of a second.</p>
+        <div class="actions">
+          <a class="button" href="./app/">Open Linefocus</a>
+          <a class="quiet" href="./Linefocus.html" download>Download the single file</a>
+        </div>
+        <p class="meta">Version {{version}}. Free and open source. Nothing to install, no account, nothing leaves your computer.</p>
+      </div>
+      {{hero}}
+    </div>
+  </div>
+
+  <div class="wrap">
+    <figure class="shot">
+      <img src="./editor.png" width="1440" height="900" alt="The Linefocus editor: a traced parabolic trough in the centre, design values on the right, and the energy balance and absorber flux below.">
+      <figcaption>Drag the trough's rim, its focus or the sun. Every change is traced again in a background thread, so the page never stalls.</figcaption>
+    </figure>
+  </div>
+
+  <section id="how">
+    <div class="wrap ledger">
+      <div>
+        <h2>Every watt is accounted for.</h2>
+        <p class="intro">Each ray ends up in exactly one place: the absorber, the mirror, the glass, or the sky. So the losses always add up, and you can see which one to work on next.</p>
+        <div class="figure-number">{{efficiency}}</div>
+        <div class="figure-label">optical efficiency of a EuroTrough-class collector at 900 W/m², with a 70 mm absorber in a glass envelope</div>
+      </div>
+      <div class="bars" role="img" aria-label="Where the sunlight on the aperture goes">
+        {{ledger}}
+        <p class="note">Shares of the sunlight falling on the aperture. Traced with 200,000 rays, a Buie sun and 2.5 mrad of mirror slope error.</p>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding-top:0">
+    <div class="wrap">
+      <h2>Built for the questions designers ask.</h2>
+      <p class="intro">Linefocus models the physics that decides whether light reaches the absorber. The definitions are written down, so you can check any number by hand.</p>
+      <dl class="points">
+        <div><dt>Real optical errors</dt><dd>Pillbox, Gaussian or Buie circumsolar sunshapes; mirror slope error and specularity as separate inputs; tracking misalignment.</dd></div>
+        <div><dt>Glass that refracts</dt><dd>Model an envelope from its datasheet transmittance, or as real glass with Fresnel reflection, refraction and bulk absorption at any sun angle.</dd></div>
+        <div><dt>Shape it by hand</dt><dd>Drag the aperture, the focus or the sun on the cross-section, or scrub any value by dragging its label. Each drag is one undo step.</dd></div>
+        <div><dt>Flux on the absorber</dt><dd>See the local concentration around the tube, the intercept factor, and the absorbed power per metre of collector.</dd></div>
+        <div><dt>Yours, and private</dt><dd>Designs are saved in your browser and download as plain JSON with a published schema. Nothing is uploaded.</dd></div>
+        <div><dt>Open in Ray Optics</dt><dd>Send any cross-section to Ray Optics Simulation, the open-source optics sandbox Linefocus grew out of, to explore it further.</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="proof">
+    <div class="wrap">
+      <h2>Checked, not just plausible.</h2>
+      <p class="intro">Every release passes tests that compare the tracer with results worked out independently.</p>
+      <div class="proof-grid">
+        <div class="proof-item"><strong>{{oracleWorst}}</strong><span>largest difference from Ray Optics Simulation across {{oracleCases}} shared scenes, including heavy row blocking</span></div>
+        <div class="proof-item"><strong>0.003</strong><span>agreement of the trough intercept factor with a semi-analytic Gaussian calculation</span></div>
+        <div class="proof-item"><strong>2σ</strong><span>slope error spreads reflected light by twice the error, as the law of reflection says it must, and Fresnel and Snell's laws hold at oblique sun angles</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="limits">
+    <div class="wrap">
+      <h2>What it doesn't do yet.</h2>
+      <ul>
+        <li>Linear Fresnel reflectors and compound parabolic concentrators are on the way. Today Linefocus designs parabolic troughs.</li>
+        <li>It traces a 2D cross-section. End losses of a finite row are an analytic correction, not traced.</li>
+        <li>Mirrors are specular with Gaussian errors. Dust and diffuse scattering are not modelled.</li>
+        <li>It reports absorbed optical power. Heat loss and fluid temperature are outside its scope.</li>
+        <li>It is for concept design and comparison. Check a final design with an established tool such as SolTrace or Tonatiuh.</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Linefocus {{version}}, Apache License 2.0.</span>
+    <a href="{{repo}}">Source on GitHub</a>
+    <a href="{{repo}}/blob/main/docs/PHYSICS.md">Physics model</a>
+    <a href="./schema/linefocus.design.v1.schema.json">Design file schema</a>
+    <a href="https://phydemo.app/ray-optics/">Ray Optics Simulation</a>
+  </div>
+</footer>
+</body>
+</html>

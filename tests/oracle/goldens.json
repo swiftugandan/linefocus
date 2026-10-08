@@ -1,0 +1,29 @@
+{
+  "rayOpticsCommit": "daf76772c73a85e1a2568c4e2e71613bba1fab77",
+  "cases": {
+    "trough-on-axis": {
+      "fraction": 0.9460647223332002,
+      "rays": 48710
+    },
+    "trough-half-degree": {
+      "fraction": 0.664780876494024,
+      "rays": 45283
+    },
+    "trough-one-degree": {
+      "fraction": 0.5266629579591512,
+      "rays": 43551
+    },
+    "fresnel-30-degrees": {
+      "fraction": 0.34654572030437214,
+      "rays": 67967
+    },
+    "fresnel-blocking": {
+      "fraction": 0.35458416833667333,
+      "rays": 49176
+    },
+    "fresnel-60-degrees": {
+      "fraction": 0.35517745580220655,
+      "rays": 43080
+    }
+  }
+}

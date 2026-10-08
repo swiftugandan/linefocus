@@ -1,0 +1,675 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:linefocus:schema:design:v1",
+  "title": "Linefocus design",
+  "type": "object",
+  "description": "A linear solar concentrator design. Lengths are metres and angular errors milliradians. Cross-field rules are listed in docs/SCHEMA.md and checked by the loader.",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "version",
+    "id",
+    "title",
+    "notes",
+    "collector",
+    "receiver",
+    "optics",
+    "sun",
+    "site",
+    "weather",
+    "mounting",
+    "designPoint",
+    "simulation"
+  ],
+  "properties": {
+    "format": {
+      "const": "linefocus.design"
+    },
+    "version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "description": "Identifier"
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 160,
+      "description": "Title"
+    },
+    "notes": {
+      "type": "string",
+      "maxLength": 20000,
+      "description": "Notes"
+    },
+    "collector": {
+      "description": "Collector",
+      "oneOf": [
+        {
+          "type": "object",
+          "description": "Parabolic trough",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "apertureWidth",
+            "focalLength"
+          ],
+          "properties": {
+            "type": {
+              "const": "trough"
+            },
+            "apertureWidth": {
+              "type": "number",
+              "description": "Aperture width (m)",
+              "minimum": 0.1,
+              "maximum": 12
+            },
+            "focalLength": {
+              "type": "number",
+              "description": "Focal length (m)",
+              "minimum": 0.02,
+              "maximum": 6
+            }
+          }
+        },
+        {
+          "type": "object",
+          "description": "Linear Fresnel reflector",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "rows",
+            "mirrorWidth",
+            "pitch",
+            "receiverHeight",
+            "curvature",
+            "curvatureRadius",
+            "secondary"
+          ],
+          "properties": {
+            "type": {
+              "const": "fresnel"
+            },
+            "rows": {
+              "type": "integer",
+              "description": "Mirror rows",
+              "minimum": 1,
+              "maximum": 60
+            },
+            "mirrorWidth": {
+              "type": "number",
+              "description": "Mirror width (m)",
+              "minimum": 0.02,
+              "maximum": 3
+            },
+            "pitch": {
+              "type": "number",
+              "description": "Row pitch (m). Centre-to-centre distance between rows",
+              "minimum": 0.02,
+              "maximum": 6
+            },
+            "receiverHeight": {
+              "type": "number",
+              "description": "Receiver height (m)",
+              "minimum": 0.1,
+              "maximum": 40
+            },
+            "curvature": {
+              "enum": [
+                "flat",
+                "cylindrical"
+              ],
+              "description": "Mirror shape"
+            },
+            "curvatureRadius": {
+              "type": "number",
+              "description": "Curvature radius (m). Used for cylindrical rows",
+              "minimum": 0.2,
+              "maximum": 500
+            },
+            "secondary": {
+              "description": "Secondary reflector",
+              "oneOf": [
+                {
+                  "type": "object",
+                  "description": "No secondary",
+                  "additionalProperties": false,
+                  "required": [
+                    "kind"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "const": "none"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "description": "Trapezoidal cavity",
+                  "additionalProperties": false,
+                  "required": [
+                    "kind",
+                    "depth",
+                    "mouthWidth"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "const": "trapezoid"
+                    },
+                    "depth": {
+                      "type": "number",
+                      "description": "Cavity depth (m)",
+                      "minimum": 0.005,
+                      "maximum": 2
+                    },
+                    "mouthWidth": {
+                      "type": "number",
+                      "description": "Mouth width (m)",
+                      "minimum": 0.01,
+                      "maximum": 3
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "description": "Compound parabolic concentrator",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "acceptanceHalfAngleDeg",
+            "truncation",
+            "gap"
+          ],
+          "properties": {
+            "type": {
+              "const": "cpc"
+            },
+            "acceptanceHalfAngleDeg": {
+              "type": "number",
+              "description": "Acceptance half-angle (°)",
+              "minimum": 1,
+              "maximum": 89
+            },
+            "truncation": {
+              "type": "number",
+              "description": "Height kept. Fraction of the full CPC height",
+              "exclusiveMinimum": 0,
+              "maximum": 1
+            },
+            "gap": {
+              "type": "number",
+              "description": "Clearance gap (m). Space between the receiver and the reflector cusp",
+              "minimum": 0,
+              "maximum": 0.05
+            }
+          }
+        }
+      ]
+    },
+    "receiver": {
+      "description": "Receiver",
+      "oneOf": [
+        {
+          "type": "object",
+          "description": "Absorber tube",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "absorberDiameter",
+            "absorptance",
+            "envelope"
+          ],
+          "properties": {
+            "type": {
+              "const": "tube"
+            },
+            "absorberDiameter": {
+              "type": "number",
+              "description": "Absorber diameter (m)",
+              "minimum": 0.002,
+              "maximum": 0.5
+            },
+            "absorptance": {
+              "type": "number",
+              "description": "Absorptance",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "envelope": {
+              "type": "object",
+              "description": "Glass envelope",
+              "additionalProperties": false,
+              "required": [
+                "mode",
+                "outerDiameter",
+                "thickness",
+                "refractiveIndex",
+                "extinction",
+                "transmittance"
+              ],
+              "properties": {
+                "mode": {
+                  "enum": [
+                    "none",
+                    "fixed",
+                    "physical"
+                  ],
+                  "description": "Model. Datasheet τ applies a fixed transmittance; physical refracts through real glass."
+                },
+                "outerDiameter": {
+                  "type": "number",
+                  "description": "Outer diameter (m)",
+                  "minimum": 0.005,
+                  "maximum": 0.5
+                },
+                "thickness": {
+                  "type": "number",
+                  "description": "Wall thickness (m)",
+                  "minimum": 0.0002,
+                  "maximum": 0.02
+                },
+                "refractiveIndex": {
+                  "type": "number",
+                  "description": "Refractive index",
+                  "minimum": 1,
+                  "maximum": 2.5
+                },
+                "extinction": {
+                  "type": "number",
+                  "description": "Extinction coefficient (1/m). Bulk absorption of the glass",
+                  "minimum": 0,
+                  "maximum": 1000
+                },
+                "transmittance": {
+                  "type": "number",
+                  "description": "Transmittance. Used in fixed mode",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "description": "Flat absorber",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "width",
+            "absorptance",
+            "insulation",
+            "cover"
+          ],
+          "properties": {
+            "type": {
+              "const": "flat"
+            },
+            "width": {
+              "type": "number",
+              "description": "Absorber width (m)",
+              "minimum": 0.005,
+              "maximum": 3
+            },
+            "absorptance": {
+              "type": "number",
+              "description": "Absorptance",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "insulation": {
+              "type": "number",
+              "description": "Insulation thickness (m). Opaque back above the absorber plate",
+              "minimum": 0,
+              "maximum": 0.5
+            },
+            "cover": {
+              "type": "object",
+              "description": "Glass cover",
+              "additionalProperties": false,
+              "required": [
+                "mode",
+                "gap",
+                "overhang",
+                "thickness",
+                "refractiveIndex",
+                "extinction",
+                "transmittance"
+              ],
+              "properties": {
+                "mode": {
+                  "enum": [
+                    "none",
+                    "fixed",
+                    "physical"
+                  ],
+                  "description": "Model"
+                },
+                "gap": {
+                  "type": "number",
+                  "description": "Gap below absorber (m)",
+                  "minimum": 0,
+                  "maximum": 0.5
+                },
+                "overhang": {
+                  "type": "number",
+                  "description": "Overhang each side (m)",
+                  "minimum": 0,
+                  "maximum": 0.5
+                },
+                "thickness": {
+                  "type": "number",
+                  "description": "Thickness (m)",
+                  "minimum": 0.0005,
+                  "maximum": 0.03
+                },
+                "refractiveIndex": {
+                  "type": "number",
+                  "description": "Refractive index",
+                  "minimum": 1,
+                  "maximum": 2.5
+                },
+                "extinction": {
+                  "type": "number",
+                  "description": "Extinction coefficient (1/m)",
+                  "minimum": 0,
+                  "maximum": 1000
+                },
+                "transmittance": {
+                  "type": "number",
+                  "description": "Transmittance. Used in fixed mode",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "optics": {
+      "type": "object",
+      "description": "Mirror optics",
+      "additionalProperties": false,
+      "required": [
+        "reflectance",
+        "slopeErrorMrad",
+        "specularityMrad"
+      ],
+      "properties": {
+        "reflectance": {
+          "type": "number",
+          "description": "Reflectance",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "slopeErrorMrad": {
+          "type": "number",
+          "description": "Slope error (mrad). Standard deviation per axis of the surface normal",
+          "minimum": 0,
+          "maximum": 50
+        },
+        "specularityMrad": {
+          "type": "number",
+          "description": "Specularity error (mrad). Extra spread of the reflected ray, per axis",
+          "minimum": 0,
+          "maximum": 50
+        }
+      }
+    },
+    "sun": {
+      "description": "Sunshape",
+      "oneOf": [
+        {
+          "type": "object",
+          "description": "Pillbox sun",
+          "additionalProperties": false,
+          "required": [
+            "shape",
+            "halfAngleMrad"
+          ],
+          "properties": {
+            "shape": {
+              "const": "pillbox"
+            },
+            "halfAngleMrad": {
+              "type": "number",
+              "description": "Half-angle (mrad)",
+              "minimum": 0,
+              "maximum": 50
+            }
+          }
+        },
+        {
+          "type": "object",
+          "description": "Gaussian sun",
+          "additionalProperties": false,
+          "required": [
+            "shape",
+            "sigmaMrad"
+          ],
+          "properties": {
+            "shape": {
+              "const": "gaussian"
+            },
+            "sigmaMrad": {
+              "type": "number",
+              "description": "Standard deviation (mrad)",
+              "minimum": 0.01,
+              "maximum": 50
+            }
+          }
+        },
+        {
+          "type": "object",
+          "description": "Buie sun",
+          "additionalProperties": false,
+          "required": [
+            "shape",
+            "csr"
+          ],
+          "properties": {
+            "shape": {
+              "const": "buie"
+            },
+            "csr": {
+              "type": "number",
+              "description": "Circumsolar ratio",
+              "minimum": 0.001,
+              "maximum": 0.5
+            }
+          }
+        }
+      ]
+    },
+    "site": {
+      "type": "object",
+      "description": "Site",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "latitude",
+        "longitude",
+        "timezone",
+        "elevation"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Site name"
+        },
+        "latitude": {
+          "type": "number",
+          "description": "Latitude (°)",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "longitude": {
+          "type": "number",
+          "description": "Longitude (°)",
+          "minimum": -180,
+          "maximum": 180
+        },
+        "timezone": {
+          "type": "number",
+          "description": "Time zone (h). Offset of local standard time from UTC",
+          "minimum": -14,
+          "maximum": 14
+        },
+        "elevation": {
+          "type": "number",
+          "description": "Elevation (m)",
+          "minimum": -500,
+          "maximum": 9000
+        }
+      }
+    },
+    "weather": {
+      "description": "Weather",
+      "oneOf": [
+        {
+          "type": "object",
+          "description": "Clear-sky model",
+          "additionalProperties": false,
+          "required": [
+            "source"
+          ],
+          "properties": {
+            "source": {
+              "const": "clear-sky"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "description": "Hourly weather file",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "name",
+            "dni"
+          ],
+          "properties": {
+            "source": {
+              "const": "epw"
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "File name"
+            },
+            "dni": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "description": "DNI (W/m²)",
+                "minimum": 0,
+                "maximum": 1500
+              },
+              "minItems": 8760,
+              "maxItems": 8760,
+              "description": "Hourly direct normal irradiance (W/m²)"
+            }
+          }
+        }
+      ]
+    },
+    "mounting": {
+      "type": "object",
+      "description": "Mounting",
+      "additionalProperties": false,
+      "required": [
+        "axisAzimuthDeg",
+        "tiltDeg",
+        "trackingErrorMrad",
+        "rowLength"
+      ],
+      "properties": {
+        "axisAzimuthDeg": {
+          "type": "number",
+          "description": "Axis azimuth (°). 0° is a north–south axis, 90° is east–west",
+          "minimum": -180,
+          "maximum": 180
+        },
+        "tiltDeg": {
+          "type": "number",
+          "description": "Tilt (°). Fixed CPC tilt about its axis, towards +x",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "trackingErrorMrad": {
+          "type": "number",
+          "description": "Tracking error (mrad). Constant misalignment of a tracking trough, used in the day and year studies",
+          "minimum": -100,
+          "maximum": 100
+        },
+        "rowLength": {
+          "type": "number",
+          "description": "Row length (m). Used for end losses",
+          "minimum": 0.5,
+          "maximum": 5000
+        }
+      }
+    },
+    "designPoint": {
+      "type": "object",
+      "description": "Design point",
+      "additionalProperties": false,
+      "required": [
+        "transversalDeg",
+        "longitudinalDeg",
+        "dni"
+      ],
+      "properties": {
+        "transversalDeg": {
+          "type": "number",
+          "description": "Transversal angle (°). Sun angle across the aperture, as traced. For a trough this is its misalignment",
+          "minimum": -89,
+          "maximum": 89
+        },
+        "longitudinalDeg": {
+          "type": "number",
+          "description": "Longitudinal angle (°)",
+          "minimum": -89,
+          "maximum": 89
+        },
+        "dni": {
+          "type": "number",
+          "description": "DNI (W/m²)",
+          "minimum": 0,
+          "maximum": 1500
+        }
+      }
+    },
+    "simulation": {
+      "type": "object",
+      "description": "Simulation",
+      "additionalProperties": false,
+      "required": [
+        "rays",
+        "seed"
+      ],
+      "properties": {
+        "rays": {
+          "type": "integer",
+          "description": "Rays",
+          "minimum": 1000,
+          "maximum": 2000000
+        },
+        "seed": {
+          "type": "integer",
+          "description": "Random seed",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      }
+    }
+  }
+}

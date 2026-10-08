@@ -1,0 +1,7 @@
+node_modules/
+dist/
+_site/
+test-results/
+.cache/
+.venv/
+.DS_Store

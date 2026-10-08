@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#182033">
+<meta name="description" content="Design and analyse linear solar concentrators in your browser. Parabolic troughs, linear Fresnel reflectors and CPCs, traced ray by ray.">
+<title>Linefocus</title>
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<div id="app" class="app" data-ribbon="open" data-studies="open" data-inspector="open">
+  <header class="titlebar">
+    <a class="brand" href="./" aria-label="Linefocus home">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><use href="#mark"/></svg>
+      <span class="wordmark">linefocus</span>
+    </a>
+    <span class="title-divider" aria-hidden="true"></span>
+    <div class="quick-actions">
+      <button class="icon-button on-ink" data-cmd="save" data-tip="Download design (Ctrl+S)" aria-label="Download design"><span data-icon="download"></span></button>
+      <button class="icon-button on-ink" data-cmd="undo" data-tip="Undo (Ctrl+Z)" aria-label="Undo"><span data-icon="undo"></span></button>
+      <button class="icon-button on-ink" data-cmd="redo" data-tip="Redo (Ctrl+Shift+Z)" aria-label="Redo"><span data-icon="redo"></span></button>
+    </div>
+    <button class="doc-title" data-cmd="rename" data-tip="Rename design" id="docTitle">Untitled</button>
+    <span class="save-state" id="saveState" role="status">Saved on this device</span>
+    <span class="spacer"></span>
+    <button class="find-command" data-cmd="palette"><span data-icon="search"></span><span>Find a command</span><kbd>Ctrl K</kbd></button>
+    <span class="local-badge" data-tip="Designs are stored in this browser. Download a copy to keep it safe."><i aria-hidden="true"></i>On this device</span>
+    <button class="help-button" data-cmd="help" data-tip="Help and keyboard shortcuts (F1)" aria-label="Help and keyboard shortcuts">?</button>
+  </header>
+
+  <nav class="tabstrip" aria-label="Ribbon">
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <button class="icon-button ribbon-toggle" data-cmd="toggle-ribbon" aria-pressed="true" data-tip="Hide the ribbon" aria-label="Hide the ribbon"><span data-icon="chevron"></span></button>
+  </nav>
+  <section class="ribbon" id="ribbon" role="toolbar" aria-label="Ribbon commands"></section>
+
+  <main class="workspace">
+    <aside class="studies" id="studies" aria-label="Studies">
+      <div class="panel-head">
+        <h2>Studies</h2>
+        <button class="icon-button" data-cmd="toggle-studies" data-tip="Hide studies" aria-label="Hide studies"><span data-icon="panel-left"></span></button>
+      </div>
+      <div class="study-list" id="studyList"></div>
+      <div class="studies-foot" id="studiesFoot"></div>
+    </aside>
+
+    <section class="stage-area" aria-label="Cross-section and results">
+      <div class="stage-head">
+        <button class="icon-button" data-cmd="toggle-studies" data-tip="Show or hide studies" aria-label="Show or hide studies"><span data-icon="panel-left"></span></button>
+        <div class="breadcrumb" id="breadcrumb"></div>
+        <div class="stage-actions">
+          <span class="trace-state" id="traceState" role="status"></span>
+          <button class="icon-button" data-cmd="fit" data-tip="Fit to view (F)" aria-label="Fit to view"><span data-icon="fit"></span></button>
+          <button class="outline-button" data-cmd="export-ray-optics" data-tip="Download this cross-section as a Ray Optics Simulation scene"><span data-icon="share"></span>Open in Ray Optics</button>
+          <button class="icon-button" data-cmd="toggle-inspector" data-tip="Show or hide the design panel" aria-label="Show or hide the design panel"><span data-icon="panel-right"></span></button>
+        </div>
+      </div>
+      <div class="viewport" id="viewport">
+        <canvas id="view" role="img" aria-label="Collector cross-section with traced rays"></canvas>
+        <div class="view-legend" id="viewLegend" aria-hidden="true"></div>
+        <div class="scale-bar" id="scaleBar" aria-hidden="true"><i></i><span></span></div>
+        <div class="view-hint" id="viewHint"></div>
+        <div class="view-tooltip" id="viewTooltip" role="tooltip" hidden></div>
+      </div>
+      <div class="dock-splitter" id="dockSplitter" role="separator" aria-orientation="horizontal" aria-label="Resize results" tabindex="0"></div>
+      <section class="dock" id="dock" aria-label="Study results"></section>
+    </section>
+
+    <aside class="inspector" id="inspector" aria-label="Design">
+      <div class="panel-head">
+        <h2>Design</h2>
+        <button class="icon-button" data-cmd="toggle-inspector" data-tip="Hide the design panel" aria-label="Hide the design panel"><span data-icon="panel-right"></span></button>
+      </div>
+      <div class="inspector-body" id="inspectorBody"></div>
+    </aside>
+  </main>
+
+  <footer class="statusbar">
+    <span class="status-message" id="statusMessage" role="status">Ready</span>
+    <span class="spacer"></span>
+    <span class="status-item" id="statusRays"></span>
+    <span class="status-item" id="statusEngine">Engine: worker</span>
+    <div class="zoom">
+      <button class="icon-button small" data-cmd="zoom-out" aria-label="Zoom out"><span data-icon="minus"></span></button>
+      <span id="zoomLabel">100%</span>
+      <button class="icon-button small" data-cmd="zoom-in" aria-label="Zoom in"><span data-icon="plus"></span></button>
+    </div>
+  </footer>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+<dialog class="dialog" id="dialog"></dialog>
+<input type="file" id="fileInput" accept=".json,.linefocus.json,application/json" hidden>
+<input type="file" id="epwInput" accept=".epw" hidden>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="mark" viewBox="0 0 32 32">
+    <path d="M4 7C5.5 29 26.5 29 28 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+    <path d="M6.9 17.6 16 13.8M16 23.5V13.8M25.1 17.6 16 13.8" fill="none" stroke="#f2a516" stroke-width="1.6" stroke-linecap="round"/>
+    <circle cx="16" cy="13.8" r="2.7" fill="#f2a516"/>
+  </symbol>
+</svg>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
