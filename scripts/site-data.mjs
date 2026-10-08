@@ -6,7 +6,11 @@ import { buildDesignScene, designPointOptions } from '../src/core/design-scene.j
 import { trace } from '../src/core/tracer.js';
 import { sampleSurface } from '../src/render/view.js';
 import { ORACLE_CASES } from '../tests/oracle/cases.mjs';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /** @param {number} v */
 const r = v => +v.toFixed(4);
@@ -65,4 +69,15 @@ export function oracleAgreement() {
     worst = Math.max(worst, Math.abs(res.ledger.absorbed / res.launched - goldens.cases[c.name].fraction));
   }
   return { cases: ORACLE_CASES.length, worst };
+}
+
+/** A real verifier report for the skill's example trough, for the marketing page's agent section. */
+export function agentSample() {
+  const dir = mkdtempSync(join(tmpdir(), 'lf-site-'));
+  const root = fileURLToPath(new URL('..', import.meta.url));
+  const env = { ...process.env, LINEFOCUS: root };
+  execFileSync(process.execPath, [join(root, '.claude/skills/linefocus/examples/process-heat-trough.mjs'), dir], { env });
+  const out = execFileSync(process.execPath, [join(root, '.claude/skills/linefocus/scripts/verify.mjs'), join(dir, 'dairy-trough.linefocus.json')], { env, encoding: 'utf8' });
+  const escape = text => text.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+  return escape(`$ node verify.mjs dairy-trough.linefocus.json\n${out.trim()}`);
 }

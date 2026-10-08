@@ -84,6 +84,13 @@ section p.intro { margin: 0 0 40px; max-width: 40em; color: var(--muted); font-s
 .proof-item strong { display: block; font-size: 34px; font-weight: 600; font-stretch: 110%; color: var(--sun); margin-bottom: 6px; }
 .proof-item span { color: var(--on-night-muted); font-size: 15px; }
 
+.agent { padding-top: 0; }
+.agent p.intro { margin-bottom: 18px; }
+.agent-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 48px; align-items: start; }
+.steps { margin: 0 0 18px; padding-left: 22px; color: var(--muted); }
+.steps li { margin: 8px 0; padding-left: 4px; }
+.meta-light { color: var(--muted); font-size: 15px; margin: 0; }
+.transcript { margin: 0; padding: 22px 24px; border-radius: 14px; background: var(--night); color: #cfd8e8; font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-x: auto; }
 .limits ul { margin: 0; padding-left: 20px; max-width: 46em; color: var(--muted); }
 .limits li { margin: 8px 0; }
 
@@ -94,7 +101,7 @@ footer a { color: var(--muted); }
 @media (max-width: 920px) {
   .hero .wrap { grid-template-columns: 1fr; min-height: 0; padding-top: 104px; }
   .ledger { grid-template-columns: 1fr; gap: 28px; }
-  .points, .proof-grid { grid-template-columns: 1fr; gap: 24px; }
+  .points, .proof-grid, .agent-grid { grid-template-columns: 1fr; gap: 24px; }
   nav.links a:not(.open) { display: none; }
   section { padding: 64px 0; }
 }
@@ -171,6 +178,23 @@ footer a { color: var(--muted); }
         <div><dt>An optimiser that shows its working</dt><dd>Let the tracer search aperture, focal length, row pitch or receiver height for the best yearly energy. It confirms every result with fresh rays and won't claim a gain smaller than the noise.</dd></div>
         <div><dt>Open in Ray Optics</dt><dd>Send any cross-section to Ray Optics Simulation, the open-source optics sandbox Linefocus grew out of, to explore it further.</dd></div>
       </dl>
+    </div>
+  </section>
+
+  <section class="agent">
+    <div class="wrap agent-grid">
+      <div>
+        <h2>Or let an agent design it.</h2>
+        <p class="intro">Linefocus comes with a skill for Claude and other coding agents. Describe the job in plain words, and the agent writes the design file, traces it with the same engine the app uses, and tells you what it found and what it couldn't know.</p>
+        <ol class="steps">
+          <li>Ask for a collector: "a process-heat trough for a dairy near Almería, with our 35 mm receivers".</li>
+          <li>The agent builds the design, checks it against the app's own loader and rules, and runs every study.</li>
+          <li>It can search for better values, confirms the gain against sampling noise, and renders previews in the real app.</li>
+          <li>You get a file to open in Linefocus, with figures you can check here.</li>
+        </ol>
+        <p class="meta-light">The skill lives in the repository under <a href="{{repo}}/tree/main/.claude/skills/linefocus">.claude/skills/linefocus</a>.</p>
+      </div>
+      <pre class="transcript" aria-label="Example output from the skill's verifier"><code>{{agentSample}}</code></pre>
     </div>
   </section>
 

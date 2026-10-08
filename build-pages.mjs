@@ -7,7 +7,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { buildApp } from './build.mjs';
-import { heroSvg, ledgerNumbers, oracleAgreement } from './scripts/site-data.mjs';
+import { heroSvg, ledgerNumbers, oracleAgreement, agentSample } from './scripts/site-data.mjs';
 import { APP_VERSION } from './src/core/model.js';
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -25,6 +25,7 @@ export async function buildSite() {
   const rows = ledger.rows.map(([label, share], i) => `<div class="bar${i === 0 ? ' hit' : ''}"><span>${label}</span><span class="track"><span class="fill" style="display:block;width:${(share * 100).toFixed(2)}%"></span></span><span class="value">${pct(share)}</span></div>`).join('\n        ');
   const values = {
     version: APP_VERSION, repo: REPO_URL, favicon, hero: heroSvg(), ledger: rows,
+    agentSample: agentSample(),
     efficiency: pct(ledger.efficiency), oracleCases: String(oracle.cases), oracleWorst: oracle.worst < 0.0001 ? '< 0.0001' : oracle.worst.toFixed(4),
   };
   let page = await readFile(join(root, 'site', 'index.html'), 'utf8');

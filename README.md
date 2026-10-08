@@ -47,6 +47,21 @@ The design saves itself in your browser as you work. The title bar says "Saved o
 
 **Open in Ray Optics** downloads the cross-section as a scene for [Ray Optics Simulation](https://phydemo.app/ray-optics/), the open-source optics sandbox this project grew out of. Open it there with File, then Open.
 
+## Designing with an agent
+
+Linefocus ships a skill for Claude and other coding agents in `.claude/skills/linefocus/`. Give an agent a brief such
+as "size a process-heat trough for a dairy near Almería with our 35 mm receivers" or "compare a trough and a Fresnel
+field at Upington". It writes the design file and measures it with the app's own tracer and studies. It can run the
+optimiser, render previews in the real app, and report the figures with their definitions and limits. The skill
+imports the model and engine from a Linefocus checkout, so its numbers are the numbers the app shows. Read
+`.claude/skills/linefocus/SKILL.md` for the workflow. A Claude Code session started in this repository picks the
+skill up automatically.
+
+```sh
+node .claude/skills/linefocus/examples/process-heat-trough.mjs /tmp      # write two example designs
+node .claude/skills/linefocus/scripts/verify.mjs /tmp/dairy-*.linefocus.json   # measure and compare them
+```
+
 ## How the physics works
 
 [docs/PHYSICS.md](docs/PHYSICS.md) defines every quantity Linefocus reports: the coordinate frame, the sun and error models, the energy ledger, the collector geometry and the validation. It is the authority. If the code and that page disagree, the code is wrong.
@@ -68,6 +83,7 @@ The design saves itself in your browser as you work. The title bar says "Saved o
 | Ribbon, commands, dialogs | `src/app.js`, `src/ui/shell.js` |
 | Colours and type | `style.css` (see [docs/BRAND.md](docs/BRAND.md)) |
 | The marketing page | `site/index.html`, `scripts/site-data.mjs` |
+| The agent skill | `.claude/skills/linefocus/` (builder, verifier, optimiser and preview scripts) |
 
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains how the pieces fit together.
 
@@ -78,6 +94,8 @@ npm run check        # strict type checking of the JSDoc-typed source (page and 
 npm test             # physics, model, history, schema and Ray Optics oracle tests
 python3 tests/browser_test.py   # end-to-end checks in Chromium; needs `npm start` running
 ```
+
+`npm test` includes the agent skill: its example must build files the app loads unchanged, and its verifier and optimiser must run.
 
 The browser test needs Python Playwright (`pip install playwright==1.57.0 && playwright install chromium`). Set `CHROMIUM_PATH` to use a Chromium you already have, and `LINEFOCUS_URL` to test another address. It writes screenshots and a report to `test-results/`.
 

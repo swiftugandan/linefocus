@@ -15,6 +15,7 @@ import { acceptanceView, incidenceView, dayView, yearView } from './ui/study-vie
 import { optimiseView, defaultSetup, chosenVariables, formatScore } from './ui/optimise-view.js';
 import { OBJECTIVES } from './core/optimise.js';
 import { parseEpw } from './core/solar.js';
+import { SITES } from './core/sites.js';
 import { interpolateEta } from './core/studies.js';
 import { Persistence } from './ui/persistence.js';
 import { Commands, Ribbon, Toasts, Dialogs, installTooltips } from './ui/shell.js';
@@ -358,7 +359,8 @@ export class LinefocusApp {
         this.optimisation.result ? `From ${formatScore(this.optimisation.result.objective, this.optimisation.result.confirmation.start)}` : 'Search for better values'],
     ];
     byId('studyList').replaceChildren(...items.map(([id, name, st, value, sub]) => {
-      const [code, label] = stateOf(st);
+      const notRun = !st.running && !st.error && value.length === 1 && value[0] === '–';
+      const [code, label] = notRun ? ['idle', 'Not run yet'] : stateOf(st);
       const item = h('button', { class: 'study', type: 'button', 'aria-current': String(this.study === id), 'data-study': id }, [
         h('span', { class: 'study-name', text: name }),
         h('span', { class: 'study-state', 'data-state': code, text: label }),
@@ -702,14 +704,6 @@ export class LinefocusApp {
 }
 
 /** @typedef {'design-point' | 'acceptance' | 'incidence' | 'day' | 'year' | 'optimise'} StudyId */
-
-/** Example sites with strong direct sunlight, for quick comparisons. */
-const SITES = [
-  { key: 'almeria', name: 'Almería, Spain', latitude: 37.09, longitude: -2.36, timezone: 1, elevation: 500 },
-  { key: 'daggett', name: 'Daggett, California', latitude: 34.86, longitude: -116.79, timezone: -8, elevation: 588 },
-  { key: 'ouarzazate', name: 'Ouarzazate, Morocco', latitude: 30.93, longitude: -6.9, timezone: 1, elevation: 1140 },
-  { key: 'upington', name: 'Upington, South Africa', latitude: -28.41, longitude: 21.27, timezone: 2, elevation: 836 },
-];
 
 /** @type {[string, string][]} */
 const SHORTCUTS = [

@@ -1,0 +1,47 @@
+{
+  "skill_name": "linefocus",
+  "evals": [
+    {
+      "id": 0,
+      "name": "process-heat-trough",
+      "prompt": "Size a small parabolic trough for 150 °C process heat at a dairy near Almería. We already buy 35 mm evacuated receiver tubes with 65 mm glass. Rows can be 60 m long. Give me a design file I can open in Linefocus and tell me the yearly yield.",
+      "expected_output": "A .linefocus.json trough with a 35 mm absorber in a 65 mm envelope at Almería, verified, with design-point efficiency, intercept factor, acceptance and a yearly yield stated with its weather caveat.",
+      "files": [],
+      "assertions": [
+        "Produced a file that the Linefocus loader (parseDesign) accepts",
+        "collector.type is \"trough\" and receiver.absorberDiameter is 0.035 with envelope.outerDiameter 0.065",
+        "mounting.rowLength is 60",
+        "verify.mjs reports no errors and the intercept factor is at least 0.9",
+        "The answer states the optical efficiency with its reference (aperture, with cos θ)",
+        "The answer says the yearly figure is a clear-sky upper bound, or uses an EPW file"
+      ]
+    },
+    {
+      "id": 1,
+      "name": "trough-versus-lfr",
+      "prompt": "For a site at Upington, South Africa, compare a EuroTrough-class parabolic trough with a 16-row linear Fresnel field on yearly energy per square metre of mirror. Which collects more, and by how much?",
+      "expected_output": "Two design files at Upington, both verified, compared with verify.mjs on yearly energy per m² of aperture, with the difference and an explanation (cosine and end losses for the LFR).",
+      "files": [],
+      "assertions": [
+        "Produced two .linefocus.json files, one trough and one fresnel, both at latitude about −28.4",
+        "Both use the same sunshape and weather source",
+        "Ran verify.mjs on both files together and reported the comparison table",
+        "Stated the yearly kWh/m² of each and which is larger",
+        "Explained the difference in terms of cosine loss, incidence angle or end losses rather than design-point efficiency alone"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "best-receiver-height",
+      "prompt": "I have a linear Fresnel design (the Linefocus default). What receiver height gives the best optical efficiency at the design point, and is the improvement real?",
+      "expected_output": "An optimise.mjs run on collector.receiverHeight with the efficiency objective, reporting the best height, the confirmed gain and the sampling noise, and an updated file only if the gain is real.",
+      "files": [],
+      "assertions": [
+        "Ran optimise.mjs with --objective efficiency and --vary collector.receiverHeight",
+        "Reported the best receiver height between 5 and 9 m",
+        "Reported the confirmed gain alongside the sampling noise",
+        "Wrote an optimised file only if the tool reported a gain beyond the noise, and verified it"
+      ]
+    }
+  ]
+}

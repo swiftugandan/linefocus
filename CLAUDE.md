@@ -20,6 +20,7 @@ Linefocus is a browser app for designing line-focus solar collectors with a cust
 - Buttons get behaviour from `data-cmd` plus a registered command. Never attach click handlers to individual command buttons. A delegated listener handles them, because the ribbon is rebuilt on every tab switch.
 - Every user-visible edit goes through `DesignStore` transactions so undo and validation work.
 - UI copy: British English, plain verbs, sentence case, no all-caps labels.
+- The agent skill in `.claude/skills/linefocus/` imports `src/core/` through `scripts/checkout.mjs` and never copies physics, defaults or limits. When you change the model, the studies or the optimiser, run `npm test` (it covers the skill) and update `SKILL.md` and `references/design-guide.md` if behaviour or names changed.
 
 ## Browser testing locally
 
