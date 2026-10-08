@@ -118,7 +118,14 @@ export function lineChart({ series, x, y, width, height, markers = [] }) {
   const yd = /** @type {[number, number]} */ ([yTicks[0], yTicks.at(-1) ?? 1]);
   const xTicks = x.ticks ?? niceTicks(xd[0], xd[1], Math.max(3, Math.floor(width / 90)));
   const multi = series.length > 1;
-  const pad = { left: 46, right: multi ? 96 : 14, top: 10, bottom: 34 };
+  const pad = { left: 46, right: 14, top: 10, bottom: 34 };
+  if (multi) {
+    // Leave room for end labels only if they will be drawn.
+    const yEnds = series.map(sr => sr.points.at(-1)?.[1]).filter(v => v !== undefined);
+    const span = (Math.max(...ys) - Math.min(0, ...ys)) || 1;
+    const sorted = /** @type {number[]} */ (yEnds).sort((a, b) => a - b);
+    if (sorted.every((v, i) => i === 0 || ((v - sorted[i - 1]) / span) * (height - 44) >= 14)) pad.right = 96;
+  }
   const pw = Math.max(40, width - pad.left - pad.right), ph = Math.max(40, height - pad.top - pad.bottom);
   /** @param {number} v */
   const sx = v => pad.left + ((v - xd[0]) / (xd[1] - xd[0] || 1)) * pw;
@@ -140,6 +147,9 @@ export function lineChart({ series, x, y, width, height, markers = [] }) {
     svg.append(s('line', { x1: sx(m.x), x2: sx(m.x), y1: pad.top, y2: pad.top + ph, stroke: 'var(--faint)', 'stroke-width': 1 }));
     svg.append(s('text', { x: sx(m.x) + 4, y: pad.top + 10 }, m.label));
   }
+  // End labels help only while they stay apart; when line ends converge, the legend and tooltip carry identity.
+  const ends = series.map(sr => sr.points.at(-1)).filter(p => p !== undefined).map(p => sy(/** @type {[number, number]} */ (p)[1])).sort((a, b) => a - b);
+  const labelEnds = multi && ends.every((y, i) => i === 0 || y - ends[i - 1] >= 14);
   for (const sr of series) {
     if (!sr.points.length) continue;
     const d = sr.points.map((p, i) => `${i ? 'L' : 'M'}${sx(p[0]).toFixed(1)},${sy(p[1]).toFixed(1)}`).join('');
@@ -148,7 +158,7 @@ export function lineChart({ series, x, y, width, height, markers = [] }) {
       svg.append(s('path', { d: area, fill: sr.colour, opacity: 0.1 }));
     }
     svg.append(s('path', { d, fill: 'none', stroke: sr.colour, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', ...(sr.dashed ? { 'stroke-dasharray': '5 4' } : {}) }));
-    if (multi) {
+    if (labelEnds) {
       const last = sr.points.at(-1);
       if (last) {
         svg.append(s('circle', { cx: sx(last[0]), cy: sy(last[1]), r: 4, fill: sr.colour, stroke: 'var(--panel)', 'stroke-width': 2 }));

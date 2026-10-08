@@ -94,7 +94,7 @@ export function designPointView({ design, result, error, running, width }) {
       series: [{ name: 'Local concentration', colour: 'var(--sun-strong)', points: profile }],
       x: { label: angle ? 'Angle around the tube (°)' : 'Position (mm)', format: v => fmt(v, 0), domain: angle ? [0, 360] : [profile[0]?.[0] ?? 0, profile.at(-1)?.[0] ?? 1], ...(angle ? { ticks: [0, 90, 180, 270, 360] } : {}) },
       y: { label: 'Suns', format: v => fmt(v, 0) },
-      width: Math.max(260, width), height: 180,
+      width: Math.max(260, width), height: 172,
     }),
     table: dataTable([angle ? 'Angle (°)' : 'Position (mm)', 'Concentration (×)', 'Flux (kW/m²)'], profile.map(([x, c]) => [fmt(x, 1), fmt(c, 1), fmt((c * design.designPoint.dni) / 1000, 2)])),
   }) : null;

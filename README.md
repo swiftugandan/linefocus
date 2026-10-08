@@ -25,6 +25,8 @@ The app runs straight from `src/` with no build step. `npm run build` writes the
 
 **Read the results.** The dock under the canvas shows the optical efficiency, the intercept factor, the absorbed power per metre and the peak concentration. It also shows where the sunlight goes and the flux around the absorber. Each chart has a table view.
 
+**Run the studies.** The Studies panel on the left lists the design point and four studies that run on their own whenever the design settles. **Acceptance** shows how much misalignment the collector tolerates. **Incidence angle** shows how efficiency falls as the sun moves off the aperture. **Day** covers the equinoxes and solstices, and **Year** sums every hour of the year. Day and year use the ASHRAE clear-sky model, an upper bound, until you import an EPW weather file from the Site tab. EPW files for most of the world are free from [climate.onebuilding.org](https://climate.onebuilding.org).
+
 **Find any command** with Ctrl+K.
 
 | Action | Keys |
@@ -58,6 +60,7 @@ The design saves itself in your browser as you work. The title bar says "Saved o
 | Background tracing | `src/worker/` |
 | The canvas | `src/render/view.js`, `src/ui/canvas-interactions.js` |
 | The design panel | `src/ui/inspector.js` |
+| Studies: acceptance, incidence, day, year | `src/core/studies.js`, `src/core/solar.js`, `src/ui/study-views.js` |
 | Results and charts | `src/ui/design-point-view.js`, `src/ui/charts.js` |
 | Ribbon, commands, dialogs | `src/app.js`, `src/ui/shell.js` |
 | Colours and type | `style.css` (see [docs/BRAND.md](docs/BRAND.md)) |

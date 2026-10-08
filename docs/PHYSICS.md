@@ -183,10 +183,12 @@ Both CPCs can be truncated at a chosen height, which trades concentration for re
 | Study | What it computes |
 |---|---|
 | Design point | One trace at the chosen θT, θL: ledger, η, γ, absorber flux map, sample ray paths |
-| Acceptance | γ against tracking error. Reports the half-angles where γ falls to 95% and 90% of its peak, and the concentration–acceptance product C·sin(θ₉₀) |
-| Incidence angle modifier | η(θT, θL)/η(0, 0) on a grid. Tracking troughs need only θL. LFRs and fixed CPCs need both axes |
-| Day | Absorbed W/m through one day at the site, every 10 minutes |
-| Year | Hourly sum over a 365-day year. Results by month, plus kWh per metre and per m² of reference aperture |
+| Acceptance | η against misalignment θT at θL = 0, relative to its best value. Reports the half-angles where it falls to 95% and 90%, and the concentration–acceptance product C·sin(θ₉₀). The sweep widens until transmission falls below 35% of its best |
+| Incidence angle | η on a grid: θL from 0° to 85° in 5° steps plus 89°. A tracking trough uses one row at its tracking error; fixed collectors add θT on the same steps. The modifier is η(θT, θL)/η(0, 0), without the cosine |
+| Day | Absorbed W/m every 10 minutes on 21 March, 21 June, 21 September and 21 December |
+| Year | Hourly sum over a 365-day year at the middle of each hour: by month, per metre, per m² of reference aperture, and as a share of DNI on the aperture area |
+
+Every point of a study uses the design's seed, so curves are smooth and two designs are compared on the same random rays. Each point uses a tenth of the design's ray count, between 8,192 and 65,536 rays.
 
 Day and year use the IAM grid (bilinear interpolation) rather than tracing every hour:
 
@@ -221,7 +223,7 @@ Clear-sky totals are an upper bound with no cloud. Treat them as indicative. Imp
 
 Linefocus checks itself against three kinds of evidence. All of them run in `npm test`.
 
-1. **Analytic results.** These include ledger conservation at several sun angles, Fresnel reflectance at normal incidence ((n−1)/(n+1))², total internal reflection, the Bravais index, the 2σ slope-error rule, sunshape bounds, and the trough's minimum receiver size.
+1. **Analytic results.** These include ledger conservation at several sun angles, Fresnel reflectance at normal incidence ((n−1)/(n+1))², total internal reflection, the Bravais index, the 2σ slope-error rule, sunshape bounds, and the trough's minimum receiver size. The solar model is checked against Meeus's worked examples (Julian day, declination), the solstice declinations, the extremes of the equation of time, an overhead sun at noon on the Tropic of Cancer, and the ASHRAE formula. The year must add up month by month, and a clear day must be symmetric about solar noon.
 2. **A semi-analytic intercept factor.** With a Gaussian sun and Gaussian slope error, a ray leaving a trough mirror at x has a Gaussian transversal error with σ = √(σ_sun² + 4σ_slope²). It reaches a tube of radius r at distance d(x) = f + x²/4f when the error is smaller than asin(r/d). Averaging that probability over the aperture gives γ to within 0.003 of the trace.
 3. **An independent tracer.** Six scenes are traced by Linefocus and by [Ray Optics Simulation](https://phydemo.app/ray-optics/) at pinned commit `daf7677`: troughs on and off axis, and LFR fields at three sun angles, one with heavy blocking. The scenes use ideal mirrors, collimated light and flat absorbers. The exported scenes and Ray Optics' detector results are committed under `tests/oracle/`, and the tests require agreement within 0.002 of the beam power. At the time of writing every case agrees within 0.0001. `scripts/ray-optics-oracle.mjs` regenerates the goldens.
 

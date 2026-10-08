@@ -11,13 +11,16 @@ import { EngineClient } from './worker/client.js';
 import { Inspector } from './ui/inspector.js';
 import { installCanvasInteractions } from './ui/canvas-interactions.js';
 import { designPointView, ledgerShares, concentrationProfile } from './ui/design-point-view.js';
+import { acceptanceView, incidenceView, dayView, yearView } from './ui/study-views.js';
+import { parseEpw } from './core/solar.js';
 import { Persistence } from './ui/persistence.js';
 import { Commands, Ribbon, Toasts, Dialogs, installTooltips } from './ui/shell.js';
 import { byId, h, fmt, pct, debounce, downloadBlob, fileName } from './ui/dom.js';
 import { hydrateIcons } from './ui/icons.js';
 
 /** @import { Design, CollectorType } from './core/model.js' */
-/** @import { DesignPointResult } from './worker/protocol.js' */
+/** @import { DesignPointResult, AcceptanceJobResult, AnnualResult } from './worker/protocol.js' */
+/** @import { StudyState } from './ui/study-views.js' */
 /** @import { OpticalScene } from './core/types.js' */
 /** @import { Figure } from './core/design-scene.js' */
 /** @import { ChangeDetail } from './core/history.js' */
@@ -59,7 +62,13 @@ export class LinefocusApp {
     /** @type {OpticalScene | null} */
     this.scene = null;
     this.saveState = 'saved';
+    /** @type {StudyId} */
     this.study = 'design-point';
+    /** @type {{ result: AcceptanceJobResult | null, revision: number, state: StudyState }} */
+    this.acceptance = { result: null, revision: -1, state: { running: false, progress: null, error: null, stale: false } };
+    /** @type {{ result: AnnualResult | null, revision: number, state: StudyState }} */
+    this.annual = { result: null, revision: -1, state: { running: false, progress: null, error: null, stale: false } };
+    this.scheduleStudies = debounce(() => this.runStudies(), 350);
     this.fitScale = 0;
     this.inspector = new Inspector(byId('inspectorBody'), { store: this.store, onError: message => this.toasts.show(message, { kind: 'error' }), figures: () => this.figures });
     this.ribbon = new Ribbon({ tabs: byId('tabs'), ribbon: byId('ribbon'), commands: this.commands, layout: this.ribbonLayout(), onShow: () => this.setPanel('ribbon', true) });
@@ -109,6 +118,7 @@ export class LinefocusApp {
   /** @param {ChangeDetail} detail */
   onChange(detail) {
     this.rebuildScene();
+    for (const slot of [this.acceptance, this.annual]) slot.state = { ...slot.state, stale: slot.result !== null };
     if (detail.kind === 'preview') {
       this.inspector.refreshValues();
       this.previewTrace();
@@ -159,7 +169,7 @@ export class LinefocusApp {
     this.running = true;
     this.renderTraceState(quality === 'full' ? 0 : null);
     try {
-      const result = await this.engine.designPoint('design-point', design, {
+      const result = await this.engine.designPoint(design, {
         rays, pathCount: quality === 'preview' ? PREVIEW_PATHS : FULL_PATHS,
         onProgress: (done, total) => this.renderTraceState(done / total),
       });
@@ -176,6 +186,43 @@ export class LinefocusApp {
     this.view.trace = this.result?.trace ?? null;
     this.view.request();
     this.renderResults();
+    if (quality === 'full' && this.result && this.resultRevision === this.store.revision) this.scheduleStudies();
+  }
+
+  /** Runs the acceptance and annual studies for the current design, one after the other. */
+  async runStudies() {
+    if (!this.scene) return;
+    const design = structuredClone(this.store.design);
+    const revision = this.store.revision;
+    /**
+     * @template T
+     * @param {{ revision: number, state: StudyState }} slot @param {() => Promise<T | null>} run @param {(result: T) => void} keep
+     */
+    const runOne = async (slot, run, keep) => {
+      slot.state = { ...slot.state, running: true, progress: 0, error: null };
+      this.renderStudyChrome();
+      try {
+        const result = await run();
+        if (!result) return false;
+        keep(result);
+        slot.revision = revision;
+        slot.state = { running: false, progress: null, error: null, stale: revision !== this.store.revision };
+      } catch (error) {
+        slot.state = { running: false, progress: null, error: error instanceof Error ? error.message : String(error), stale: false };
+      }
+      this.renderStudyChrome();
+      return true;
+    };
+    /** @param {{ state: StudyState }} slot */
+    const progress = slot => (/** @type {number} */ done, /** @type {number} */ total) => { slot.state = { ...slot.state, progress: done / total }; this.renderStudyChrome(); };
+    if (!(await runOne(this.acceptance, () => this.engine.acceptance(design, progress(this.acceptance)), r => { this.acceptance.result = r; }))) return;
+    await runOne(this.annual, () => this.engine.annual(design, progress(this.annual)), r => { this.annual.result = r; });
+  }
+
+  /** Refreshes the study list and, when a study is showing, the dock. */
+  renderStudyChrome() {
+    this.renderStudies();
+    if (this.study !== 'design-point') this.renderDock();
   }
 
   // ---------- Rendering ----------
@@ -203,22 +250,57 @@ export class LinefocusApp {
     const dock = byId('dock');
     const wide = window.innerWidth > 1280;
     const width = Math.floor((dock.clientWidth - 36 - (wide ? 18 : 0)) / (wide ? 2 : 1));
-    dock.replaceChildren(designPointView({ design: this.store.design, result: this.result, error: this.error, running: this.running, width }));
+    // Study views put a 220 px column of tiles beside one chart.
+    const studyWidth = window.innerWidth > 720 ? dock.clientWidth - 36 - 238 : dock.clientWidth - 36;
+    const design = this.store.design;
+    const scroll = dock.scrollTop;
+    /** @type {HTMLElement} */
+    let view;
+    if (this.study === 'acceptance') view = acceptanceView({ result: this.acceptance.result, state: this.acceptance.state, width: studyWidth });
+    else if (this.study === 'incidence') view = incidenceView({ design, scene: this.scene, result: this.annual.result, state: this.annual.state, width: studyWidth });
+    else if (this.study === 'day') view = dayView({ result: this.annual.result, state: this.annual.state, width: studyWidth });
+    else if (this.study === 'year') view = yearView({ design, result: this.annual.result, state: this.annual.state, width: studyWidth });
+    else view = designPointView({ design, result: this.result, error: this.error, running: this.running, width });
+    dock.replaceChildren(view);
+    dock.scrollTop = scroll;
+  }
+
+  /** @param {StudyId} study */
+  showStudy(study) {
+    this.study = study;
+    this.renderStudies();
+    this.renderDock();
+    this.ribbon.refresh();
   }
 
   renderStudies() {
-    const list = byId('studyList');
     const t = this.result?.trace;
-    const item = h('button', { class: 'study', type: 'button', 'aria-current': String(this.study === 'design-point') }, [
-      h('span', { class: 'study-name', text: 'Design point' }),
-      h('span', { class: 'study-state', 'data-state': this.error ? 'error' : this.running ? 'running' : 'done', text: this.error ? 'Needs attention' : this.running ? 'Tracing' : 'Up to date' }),
-      h('span', { class: 'study-value' }, t ? [pct(t.efficiency, 1), h('small', { text: 'optical efficiency' })] : ['–']),
-      h('span', { class: 'study-sub', text: t ? `Intercept factor ${fmt(t.intercept, 3)}` : 'No trace yet' }),
-    ]);
-    item.addEventListener('click', () => { this.study = 'design-point'; this.renderDock(); });
-    list.replaceChildren(item);
-    const foot = byId('studiesFoot');
-    foot.replaceChildren(h('strong', { text: 'Traced in your browser' }), 'Every ray runs on this computer. Nothing is uploaded.');
+    const a = this.acceptance.result?.acceptance;
+    const annual = this.annual.result;
+    /** @param {StudyState} st */
+    const stateOf = st => (st.error ? ['error', 'Needs attention'] : st.running ? ['running', st.progress !== null && st.progress > 0 ? `${Math.round(st.progress * 100)}%` : 'Running'] : st.stale ? ['stale', 'Updating'] : ['done', 'Up to date']);
+    const dp = /** @type {StudyState} */ ({ running: this.running, progress: null, error: this.error, stale: false });
+    const eta0 = annual ? annual.grid.eta[0][0] : 0;
+    /** @type {[StudyId, string, StudyState, (string | Node)[], string][]} */
+    const items = [
+      ['design-point', 'Design point', dp, t ? [pct(t.efficiency, 1), h('small', { text: 'optical efficiency' })] : ['–'], t ? `Intercept factor ${fmt(t.intercept, 3)}` : 'No trace yet'],
+      ['acceptance', 'Acceptance', this.acceptance.state, a && a.halfAngle90 !== null ? [`±${fmt(a.halfAngle90, a.halfAngle90 < 1 ? 2 : 1)}°`, h('small', { text: 'at 90%' })] : ['–'], a ? `Concentration × acceptance ${a.cap90 === null ? '–' : fmt(a.cap90, 2)}` : 'Tolerance to misalignment'],
+      ['incidence', 'Incidence angle', this.annual.state, annual ? [fmt(eta0 > 0 ? (annual.grid.tracking ? annual.grid.eta[0][annual.grid.longitudinal.indexOf(45)] : annual.grid.eta[annual.grid.transversal.indexOf(45)][0]) / eta0 : 0, 3), h('small', { text: 'modifier at 45°' })] : ['–'], 'Efficiency against sun angle'],
+      ['day', 'Day', this.annual.state, annual ? [fmt(annual.days[1].energy / 1000, 1), h('small', { text: 'kWh/m on 21 June' })] : ['–'], annual ? `21 December: ${fmt(annual.days[3].energy / 1000, 1)} kWh/m` : 'Equinoxes and solstices'],
+      ['year', 'Year', this.annual.state, annual ? [fmt(annual.year.perArea, 0), h('small', { text: 'kWh/m² a year' })] : ['–'], annual ? (this.store.design.weather.source === 'clear-sky' ? 'Clear sky, an upper bound' : annual.year.source) : 'Energy over a year'],
+    ];
+    byId('studyList').replaceChildren(...items.map(([id, name, st, value, sub]) => {
+      const [code, label] = stateOf(st);
+      const item = h('button', { class: 'study', type: 'button', 'aria-current': String(this.study === id), 'data-study': id }, [
+        h('span', { class: 'study-name', text: name }),
+        h('span', { class: 'study-state', 'data-state': code, text: label }),
+        h('span', { class: 'study-value' }, value),
+        h('span', { class: 'study-sub', text: sub }),
+      ]);
+      item.addEventListener('click', () => this.showStudy(id));
+      return item;
+    }));
+    byId('studiesFoot').replaceChildren(h('strong', { text: 'Traced in your browser' }), 'Every ray runs on this computer. Nothing is uploaded.');
   }
 
   /** @param {number | null} progress */
@@ -401,6 +483,15 @@ export class LinefocusApp {
       { id: 'undo', label: 'Undo', icon: 'undo', shortcut: 'Ctrl+Z', enabled: () => this.store.canUndo, run: () => this.store.undo() },
       { id: 'redo', label: 'Redo', icon: 'redo', shortcut: 'Ctrl+Shift+Z', enabled: () => this.store.canRedo, run: () => this.store.redo() },
       collector('trough'), collector('fresnel'), collector('cpc'),
+      ...(/** @type {[StudyId, string, string][]} */ ([['design-point', 'Design point', 'target'], ['acceptance', 'Acceptance', 'acceptance'], ['incidence', 'Incidence angle', 'incidence'], ['day', 'Day', 'day'], ['year', 'Year', 'year']]))
+        .map(([id, label, icon]) => ({ id: `study-${id}`, label: `Show ${label.toLowerCase()} study`, icon, pressed: () => this.study === id, run: () => this.showStudy(id) })),
+      { id: 'rerun-studies', label: 'Run studies again', icon: 'refresh', hint: 'Run the acceptance and annual studies again', enabled: () => !!this.scene, run: () => this.runStudies() },
+      { id: 'import-epw', label: 'Import weather file', icon: 'weather', hint: 'Use hourly DNI and the site from an EnergyPlus weather (EPW) file', run: () => byId('epwInput').click() },
+      { id: 'clear-sky', label: 'Clear sky', icon: 'sun', hint: 'Use the ASHRAE clear-sky model for DNI', pressed: () => d().weather.source === 'clear-sky', run: () => edit('Use the clear-sky model', x => { x.weather = { source: 'clear-sky' }; }) },
+      ...SITES.map(site => ({ id: `site-${site.key}`, label: site.name, icon: 'globe', hint: `${site.name}: ${site.latitude}°, ${site.longitude}°`, pressed: () => d().site.name === site.name && d().weather.source === 'clear-sky',
+        run: () => edit(`Move to ${site.name}`, x => { x.site = { name: site.name, latitude: site.latitude, longitude: site.longitude, timezone: site.timezone, elevation: site.elevation }; x.weather = { source: 'clear-sky' }; }) })),
+      { id: 'axis-ns', label: 'North–south axis', icon: 'trough', pressed: () => d().mounting.axisAzimuthDeg === 0, run: () => edit('Turn the axis north–south', x => { x.mounting.axisAzimuthDeg = 0; }) },
+      { id: 'axis-ew', label: 'East–west axis', icon: 'trough', pressed: () => d().mounting.axisAzimuthDeg === 90, run: () => edit('Turn the axis east–west', x => { x.mounting.axisAzimuthDeg = 90; }) },
       { id: 'trace', label: 'Trace now', icon: 'trace', shortcut: 'T', hint: 'Trace the design point again', run: () => this.trace('full') },
       quality(20000, 'Draft'), quality(200000, 'Standard'), quality(1000000, 'Fine'),
       { id: 'new-seed', label: 'New random seed', icon: 'refresh', hint: 'Trace with different random rays to see the sampling noise', run: () => edit('Use a new random seed', x => { x.simulation.seed = (x.simulation.seed * 1103515245 + 12345) >>> 0; }) },
@@ -423,6 +514,21 @@ export class LinefocusApp {
       if (!(button instanceof HTMLElement) || (button instanceof HTMLButtonElement && button.disabled)) return;
       this.commands.run(button.dataset.cmd ?? '').catch(error => this.toasts.show(error instanceof Error ? error.message : String(error), { kind: 'error' }));
     });
+    byId('epwInput').addEventListener('change', async e => {
+      const input = /** @type {HTMLInputElement} */ (e.target);
+      const file = input.files?.[0];
+      input.value = '';
+      if (!file) return;
+      try {
+        const { site, weather } = parseEpw(await file.text(), file.name);
+        edit(`Use weather from ${file.name}`, x => { x.site = site; x.weather = { ...weather, dni: [...weather.dni] }; });
+        const annual = weather.dni.reduce((a, b) => a + b, 0) / 1000;
+        this.toasts.show(`Using ${site.name}: ${fmt(annual, 0)} kWh/m² of direct normal irradiation a year.`);
+        this.showStudy('year');
+      } catch (error) {
+        this.toasts.show(`${file.name} could not be used. ${error instanceof Error ? error.message : error}`, { kind: 'error', ms: 8000 });
+      }
+    });
     byId('fileInput').addEventListener('change', e => {
       const input = /** @type {HTMLInputElement} */ (e.target);
       const file = input.files?.[0];
@@ -444,9 +550,14 @@ export class LinefocusApp {
         { caption: 'Edit', items: [{ cmd: 'undo', size: 'small' }, { cmd: 'redo', size: 'small' }, { cmd: 'rename', size: 'small', label: 'Rename' }] },
       ] },
       { id: 'analyse', label: 'Analyse', groups: [
-        { caption: 'Design point', items: [{ cmd: 'trace', label: 'Trace now', className: 'sun' }] },
+        { caption: 'Studies', items: [{ cmd: 'study-design-point', label: 'Design point' }, { cmd: 'study-acceptance', label: 'Acceptance' }, { cmd: 'study-incidence', label: 'Incidence' }, { cmd: 'study-day', label: 'Day' }, { cmd: 'study-year', label: 'Year' }] },
+        { caption: 'Run', items: [{ cmd: 'trace', label: 'Trace now', className: 'sun' }, { cmd: 'rerun-studies', size: 'small', label: 'Studies again' }, { cmd: 'new-seed', size: 'small', label: 'New seed' }] },
         { caption: 'Quality', items: [{ cmd: 'rays-20000', label: 'Draft' }, { cmd: 'rays-200000', label: 'Standard' }, { cmd: 'rays-1000000', label: 'Fine' }] },
-        { caption: 'Sampling', items: [{ cmd: 'new-seed', label: 'New seed' }] },
+      ] },
+      { id: 'site', label: 'Site', groups: [
+        { caption: 'Weather', items: [{ cmd: 'import-epw', label: 'Weather file' }, { cmd: 'clear-sky', label: 'Clear sky' }] },
+        { caption: 'Example sites', items: SITES.map(site => ({ cmd: `site-${site.key}`, size: /** @type {const} */ ('small'), label: site.name })) },
+        { caption: 'Axis', items: [{ cmd: 'axis-ns', size: 'small', label: 'North–south' }, { cmd: 'axis-ew', size: 'small', label: 'East–west' }] },
       ] },
       { id: 'view', label: 'View', groups: [
         { caption: 'Camera', items: [{ cmd: 'fit', label: 'Fit' }, { cmd: 'zoom-in', size: 'small' }, { cmd: 'zoom-out', size: 'small' }] },
@@ -515,6 +626,16 @@ export class LinefocusApp {
     });
   }
 }
+
+/** @typedef {'design-point' | 'acceptance' | 'incidence' | 'day' | 'year'} StudyId */
+
+/** Example sites with strong direct sunlight, for quick comparisons. */
+const SITES = [
+  { key: 'almeria', name: 'Almería, Spain', latitude: 37.09, longitude: -2.36, timezone: 1, elevation: 500 },
+  { key: 'daggett', name: 'Daggett, California', latitude: 34.86, longitude: -116.79, timezone: -8, elevation: 588 },
+  { key: 'ouarzazate', name: 'Ouarzazate, Morocco', latitude: 30.93, longitude: -6.9, timezone: 1, elevation: 1140 },
+  { key: 'upington', name: 'Upington, South Africa', latitude: -28.41, longitude: 21.27, timezone: 2, elevation: 836 },
+];
 
 /** @type {[string, string][]} */
 const SHORTCUTS = [

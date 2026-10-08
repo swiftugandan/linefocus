@@ -4,6 +4,7 @@
 
 import { buildDesignScene, designPointOptions } from '../core/design-scene.js';
 import { trace, mergeTraces, RAY_BLOCK } from '../core/tracer.js';
+import { acceptanceStudy, iamGrid, yearStudy, dayStudy } from '../core/studies.js';
 
 /** @import { EngineRequest, EngineResponse } from './protocol.js' */
 /** @import { TraceResult } from '../core/types.js' */
@@ -18,7 +19,18 @@ const post = message => scope.postMessage(message);
 /** Lets queued messages arrive between chunks. */
 const yieldToMessages = () => new Promise(resolve => setTimeout(resolve, 0));
 
-/** @param {EngineRequest} job */
+/**
+ * Progress callback for studies: reports, yields, and tells the study to stop once the job is superseded.
+ * @param {EngineRequest} job
+ */
+const progressFor = job => async (/** @type {number} */ done, /** @type {number} */ total) => {
+  await yieldToMessages();
+  if (latest.get(job.channel) !== job.id) return false;
+  post({ type: 'progress', id: job.id, done, total });
+  return true;
+};
+
+/** @param {Extract<EngineRequest, { kind: 'design-point' }>} job */
 async function designPoint(job) {
   const started = performance.now();
   const { scene, figures } = buildDesignScene(job.design);
@@ -36,11 +48,31 @@ async function designPoint(job) {
   post({ type: 'result', id: job.id, result: { scene, figures, trace: mergeTraces(parts), elapsedMs: performance.now() - started } });
 }
 
+/** @param {Extract<EngineRequest, { kind: 'acceptance' }>} job */
+async function acceptance(job) {
+  const started = performance.now();
+  const { scene } = buildDesignScene(job.design);
+  const result = await acceptanceStudy(job.design, scene, progressFor(job));
+  if (!result) return post({ type: 'superseded', id: job.id });
+  post({ type: 'result', id: job.id, result: { acceptance: result, elapsedMs: performance.now() - started } });
+}
+
+/** @param {Extract<EngineRequest, { kind: 'annual' }>} job */
+async function annual(job) {
+  const started = performance.now();
+  const { scene } = buildDesignScene(job.design);
+  const grid = await iamGrid(job.design, scene, progressFor(job));
+  if (!grid) return post({ type: 'superseded', id: job.id });
+  post({ type: 'result', id: job.id, result: { grid, year: yearStudy(job.design, scene, grid), days: dayStudy(job.design, scene, grid), elapsedMs: performance.now() - started } });
+}
+
 scope.onmessage = async event => {
   const job = /** @type {EngineRequest} */ (event.data);
   latest.set(job.channel, job.id);
   try {
     if (job.kind === 'design-point') await designPoint(job);
+    else if (job.kind === 'acceptance') await acceptance(job);
+    else await annual(job);
   } catch (error) {
     post({ type: 'error', id: job.id, message: error instanceof Error ? error.message : String(error) });
   }

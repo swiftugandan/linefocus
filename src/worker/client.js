@@ -1,10 +1,13 @@
 /** Page-side handle on the engine worker. Each request returns a promise; a request superseded by a newer one on
  * the same channel resolves to null. */
 
-/** @import { EngineRequest, EngineResponse, DesignPointResult } from './protocol.js' */
+/** @import { EngineRequest, EngineResponse, EngineResult, DesignPointResult, AcceptanceJobResult, AnnualResult } from './protocol.js' */
 /** @import { Design } from '../core/model.js' */
 
-/** @typedef {{ channel: string, resolve: (value: DesignPointResult | null) => void, reject: (error: Error) => void, onProgress?: (done: number, total: number) => void }} Pending */
+/** @typedef {(done: number, total: number) => void} OnProgress */
+/** A request without its id, kept as a union of the request kinds. */
+/** @typedef {EngineRequest extends infer R ? (R extends unknown ? Omit<R, 'id'> : never) : never} RequestBody */
+/** @typedef {{ channel: string, resolve: (value: EngineResult | null) => void, reject: (error: Error) => void, onProgress?: OnProgress }} Pending */
 
 export class EngineClient {
   /** @param {Worker} worker */
@@ -33,19 +36,32 @@ export class EngineClient {
   }
 
   /**
-   * Traces the design point.
-   * @param {string} channel @param {Design} design @param {{ rays: number, pathCount: number, onProgress?: (done: number, total: number) => void }} options
-   * @returns {Promise<DesignPointResult | null>}
+   * Sends a job, settling any older job on the same channel as superseded.
+   * @param {RequestBody} body @param {OnProgress} [onProgress]
+   * @returns {Promise<EngineResult | null>}
    */
-  designPoint(channel, design, { rays, pathCount, onProgress }) {
+  send(body, onProgress) {
     const id = this.nextId++;
-    // Any older job on this channel will be dropped by the worker; settle it here too.
-    for (const [otherId, p] of this.pending) if (p.channel === channel) { this.pending.delete(otherId); p.resolve(null); }
-    /** @type {EngineRequest} */
-    const request = { kind: 'design-point', id, channel, design, rays, pathCount };
+    for (const [otherId, p] of this.pending) if (p.channel === body.channel) { this.pending.delete(otherId); p.resolve(null); }
+    const request = /** @type {EngineRequest} */ ({ ...body, id });
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { channel, resolve, reject, onProgress });
+      this.pending.set(id, { channel: body.channel, resolve, reject, onProgress });
       this.worker.postMessage(request);
     });
+  }
+
+  /** @param {Design} design @param {{ rays: number, pathCount: number, onProgress?: OnProgress }} options */
+  async designPoint(design, { rays, pathCount, onProgress }) {
+    return /** @type {DesignPointResult | null} */ (await this.send({ kind: 'design-point', channel: 'design-point', design, rays, pathCount }, onProgress));
+  }
+
+  /** @param {Design} design @param {OnProgress} [onProgress] */
+  async acceptance(design, onProgress) {
+    return /** @type {AcceptanceJobResult | null} */ (await this.send({ kind: 'acceptance', channel: 'acceptance', design }, onProgress));
+  }
+
+  /** @param {Design} design @param {OnProgress} [onProgress] */
+  async annual(design, onProgress) {
+    return /** @type {AnnualResult | null} */ (await this.send({ kind: 'annual', channel: 'annual', design }, onProgress));
   }
 }

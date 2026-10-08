@@ -68,6 +68,7 @@ with sync_playwright() as p:
                 page.evaluate(f'() => window.linefocus.commands.run("{cmd}")')
     check('every enabled ribbon button runs its command', not unrouted, unrouted)
     page.click('.tab[data-tab="design"]')
+    page.click('.study[data-study="design-point"]')
     wait_settled(page)
 
     eff = page.evaluate('() => window.linefocus.result.trace.efficiency')
@@ -118,6 +119,15 @@ with sync_playwright() as p:
     scene = json.loads(Path(ro.value.path()).read_text())
     check('the Ray Optics export is a version 5 scene with a beam and a parabolic mirror', scene.get('version') == 5 and {'Beam', 'ParabolicMirror'} <= {o['type'] for o in scene['objs']})
 
+    # Studies run after the design point settles; each view renders without errors.
+    page.wait_for_function('window.linefocus.annual.result && !window.linefocus.annual.state.running && window.linefocus.acceptance.result', timeout=30000)
+    shown = []
+    for study, title in [('acceptance', 'Acceptance'), ('incidence', 'Incidence angle'), ('day', 'Day'), ('year', 'Year')]:
+        page.click(f'.study[data-study="{study}"]')
+        shown.append(page.locator('.dock h3', has_text=title).count() == 1)
+    year = page.evaluate('() => window.linefocus.annual.result.year.perArea')
+    check('every study shows its results, and the year is plausible for a clear-sky trough', all(shown) and 1500 < year < 3200, {'shown': shown, 'kWh/m2': year})
+    page.click('.study[data-study="design-point"]')
     page.screenshot(path=str(OUT / 'desktop.png'))
     check('no console or page errors on desktop', not errors, errors)
 
